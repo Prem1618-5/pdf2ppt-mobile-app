@@ -12,6 +12,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // desktop twin of pdfbox-android (same 2.0.27 API) to check text extraction and rendering on the JVM
+    testImplementation(libs.pdfbox.desktop)
 }
 
 tasks.test {

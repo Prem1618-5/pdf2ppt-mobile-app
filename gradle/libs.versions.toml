@@ -38,6 +38,7 @@ mlkit-text = { module = "com.google.mlkit:text-recognition", version.ref = "mlki
 mlkit-text-devanagari = { module = "com.google.mlkit:text-recognition-devanagari", version.ref = "mlkitText" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox" }
 junit = { module = "junit:junit", version.ref = "junit" }
+pdfbox-desktop = { module = "org.apache.pdfbox:pdfbox", version = "2.0.27" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
