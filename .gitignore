@@ -1,2 +1,17 @@
 # Local secrets - never commit the real env file
 .env
+# Gradle / Android
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+*.apk
+*.aab
+# keystores: only the public debug key is committed
+*.keystore
+*.jks
+!app/papertoslides-debug.keystore
+__pycache__/
