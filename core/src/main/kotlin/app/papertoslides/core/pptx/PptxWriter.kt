@@ -119,8 +119,9 @@ class PptxWriter(out: OutputStream, private val title: String = "Questions") : A
             String(resource("static-parts.txt"), Charsets.UTF_8).lines().map { it.trim() }.filter { it.isNotEmpty() }
         }
 
+        // stored as "rels/": Android's packager silently drops resource folders whose names start with "_"
         private fun resource(name: String): ByteArray =
-            PptxWriter::class.java.getResourceAsStream("/pptx/$name")?.use { it.readBytes() }
+            PptxWriter::class.java.getResourceAsStream("/pptx/" + name.replace("_rels/", "rels/"))?.use { it.readBytes() }
                 ?: error("missing pptx resource $name")
 
         private fun rel(id: String, type: String, target: String) = """<Relationship Id="$id" Type="$type" Target="$target"/>"""

@@ -68,6 +68,12 @@ class PptxWriterTest {
         ZipFile(deck).use { z -> assertEquals(30, z.entries().toList().count { it.name.matches(Regex("ppt/slides/slide\\d+\\.xml")) }) }
     }
 
+    @Test fun `no resource folder starts with an underscore (Android drops them from the APK)`() {
+        val root = File(PptxWriter::class.java.getResource("/pptx/static-parts.txt")!!.toURI()).parentFile
+        val bad = root.walkTopDown().filter { it.name.startsWith("_") }.toList()
+        assertTrue("$bad", bad.isEmpty())
+    }
+
     @Test fun `alt text and title are escaped`() {
         val f = File(Fixtures.outDir, "esc.pptx")
         PptxWriter(f.outputStream(), "A & B").use { it.add(SlideSpec.Picture(png(10, 10, ""), "png", SlideLayout.TOP.box(), "Q <1> & \"2\"")) }
