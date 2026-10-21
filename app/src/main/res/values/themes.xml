@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PaperToSlides" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+    <color name="bg">#FFFBF8FF</color>
+    <color name="bg_dark">#FF121318</color>
+    <color name="ic_bg">#FF2754C5</color>
+</resources>

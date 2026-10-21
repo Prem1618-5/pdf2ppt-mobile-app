@@ -15,6 +15,11 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // real phones only (keeps the APK small); add "x86_64" for an emulator build
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            if (providers.gradleProperty("withX86").isPresent) abiFilters += "x86_64" // CI emulator
+        }
     }
 
     signingConfigs {
@@ -43,8 +48,29 @@ android {
     buildFeatures { compose = true; buildConfig = true }
 
     packaging {
-        resources.excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module")
+        resources.excludes += setOf("META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/*.kotlin_module",
+            // post-quantum tables from BouncyCastle (pulled in by PdfBox) are never used: -9 MB
+            "org/bouncycastle/pqc/**")
     }
+}
+
+// Self-test papers (Settings -> Self-test) are bundled from the handoff pack, not duplicated in the repo
+abstract class FixtureAssets : DefaultTask() {
+    @get:InputDirectory abstract val source: DirectoryProperty
+    @get:OutputDirectory abstract val output: DirectoryProperty
+
+    @TaskAction fun copy() {
+        val out = output.get().asFile
+        out.deleteRecursively()
+        source.get().asFile.copyRecursively(File(out, "fixtures"))
+        File(out, "fixtures/lines").deleteRecursively()
+    }
+}
+val fixtureAssets = tasks.register<FixtureAssets>("fixtureAssets") {
+    source.set(rootProject.layout.projectDirectory.dir("handoff/fixtures"))
+}
+androidComponents {
+    onVariants { it.sources.assets?.addGeneratedSourceDirectory(fixtureAssets, FixtureAssets::output) }
 }
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
@@ -70,8 +96,15 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.mlkit.text)
     implementation(libs.mlkit.text.devanagari)
-    implementation(libs.pdfbox.android)
+    implementation(libs.pdfbox.android) {
+        // certificate (PKIX) support is only for certificate-encrypted / signed PDFs, which PdfRenderer cannot open
+        // anyway; dropping it also removes a trust-all X509 manager from the APK
+        exclude(group = "org.bouncycastle", module = "bcpkix-jdk15to18")
+        exclude(group = "org.bouncycastle", module = "bcutil-jdk15to18")
+    }
     testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.junit)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
 }
