@@ -3,10 +3,11 @@
 Honest list. "Unverified" means it was built and reasoned about, but not run on a real phone.
 
 ## Not verified on a real phone yet
-- **Everything Android-specific** was compiled, linted and (in CI) run on an x86_64 emulator by the instrumented
-  self-test, but not on a real phone. Please run **Settings → Self-test** and send the report.
-- **OCR quality (S2)**: the pass rule is ≥ 90 % of the 30 numbers of `scan_pages.pdf` and the first questions of
-  `photo_exif_rot.jpg`. Measured only by the self-test on a device/emulator; the CI emulator log has the numbers.
+- **Everything Android-specific** was compiled, linted and run in CI on an Android 14 x86_64 emulator by the
+  instrumented self-test (9/9 pass, peak memory ~70 MB), but **not on a real phone**. Please run
+  **Settings → Self-test** and send the report.
+- **OCR quality (S2)** on the emulator: `scan_pages.pdf` 30/30 numbers found (pass rule ≥ 90 %), `photo_exif_rot.jpg`
+  upright with 18 numbered questions, 0 API calls. Real phone cameras and Hindi pages are untested.
 - **Speed/heat**: imaging is hand-written Kotlin (no OpenCV). The 300 ms per half-page target and the thermal
   governor are unmeasured on a mid-range phone.
 - **Real papers**: Hindi, bilingual two-page spreads, photos of printed pages, PDFs with `/Rotate 90` or a CropBox
