@@ -76,10 +76,13 @@ class SelfTest(private val ctx: Context, private val s: Services) {
                 check(nums.size >= 12 && nums.first() == 1) { "numbers found: $nums" }
                 "${nums.size} numbered questions on the upright page"
             }; emit(true)
-            cases += job("garbage_textlayer.pdf", "A5 junk text layer is never silent", expectFailure = true) { p ->
+            cases += job("garbage_textlayer.pdf", "A5 junk text layer escalates, never silent zero") { p ->
+                // the junk text layer must be rejected (no page stays on T0); OCR may then read the real questions
+                check(p.pages.none { it.tier == Tier.T0_TEXT }) { "junk text layer was trusted: ${p.pages.map { it.tier }}" }
+                check(p.items.isNotEmpty()) { "zero questions" }
                 val flagged = p.items.all { "no_number" in it.flags || "low_confidence" in it.flags }
-                check(p.integrity?.ok == false && flagged) { "integrity ok=${p.integrity?.ok} — should have been flagged" }
-                "escalated and flagged (no key: Gemini skipped)"
+                check(p.integrity?.ok == true || flagged) { "unflagged result with failed integrity" }
+                "text layer rejected, ${p.items.size} questions via ${p.pages.mapNotNull { it.tier }.distinct().joinToString()}"
             }; emit(true)
             cases += job("password.pdf", "A6 password PDF", expectFailure = true) { "should have been refused" }; emit(true)
             cases += job("corrupt.pdf", "A6 damaged PDF", expectFailure = true) { p -> "read anyway: ${p.items.size} items, no crash" }; emit(true)
