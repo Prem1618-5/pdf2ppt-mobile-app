@@ -1,0 +1,86 @@
+name: Android
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tests + APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Python tools for the deck validator
+        run: pip install python-pptx pymupdf pillow
+      - name: Unit tests (pure Kotlin domain, fixtures, PPTX validator) and debug APK
+        run: ./gradlew :core:test testDebugUnitTest assembleDebug --stacktrace
+      - name: Validate the generated 30-question decks (both layouts)
+        run: |
+          python handoff/tools/validate_pptx.py core/build/test-out/e2e_top.pptx --layout top --expect-questions 30
+          python handoff/tools/validate_pptx.py core/build/test-out/e2e_top_right.pptx --layout top-right --expect-questions 30
+      - name: Security sweep (B14)
+        run: scripts/security_sweep.sh app/build/outputs/apk/debug/PaperToSlides-v*-debug.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: PaperToSlides-debug-apk
+          path: app/build/outputs/apk/debug/PaperToSlides-v*-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            core/build/reports/tests
+            core/build/test-out/*.pptx
+            core/build/test-out/*.txt
+
+  emulator:
+    name: Self-test on an emulator
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the on-device self-test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb logcat -c
+            ./gradlew connectedDebugAndroidTest -PwithX86 --stacktrace || (adb logcat -d -s SelfTest:I AndroidRuntime:E TestRunner:* > selftest.log; exit 1)
+            adb logcat -d -s SelfTest:I > selftest.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: emulator-self-test
+          path: |
+            selftest.log
+            app/build/reports/androidTests

@@ -1,0 +1,121 @@
+{
+  "digital_1col.pdf": {
+    "questions": 8,
+    "numbers": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "api_calls": 0,
+    "tier": "text-layer",
+    "legacy_python_result": "8 slides but Q8 has NO number (flags no_number, low_confidence)",
+    "legacy_defect": "page 2 holds only Q8 (<200 chars of text) so ingest.py classifies it 'pdf-scan' and sends it down the image path. The port must classify a short page as digital when it has real text lines (or when its file neighbours are digital) and read Q8 as number 8."
+  },
+  "digital_2col_split.pdf": {
+    "questions": 30,
+    "numbers": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ],
+    "api_calls": 0,
+    "tier": "text-layer",
+    "excluded": [
+      "answer key page",
+      "header url",
+      "page numbers"
+    ],
+    "legacy_python_result": "45 slides: numbers 1..30 then 1..15 (the answer-key page was parsed as questions; integrity_ok still said True)",
+    "legacy_defect": "layout_classical._looks_like_answer_key needs >60% of lines to be <=4 chars; keys such as '10  C' are longer. Also integrity_check treats a numbering restart as a new section, so it never objects. The port must detect the key page (header 'ANSWER KEY' + >=70% of lines like '<n> <letter>') and expect exactly 30 questions.",
+    "note": "questions are split across columns/pages by construction; stitched"
+  },
+  "scan_pages.pdf": {
+    "questions": 30,
+    "numbers": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ],
+    "tier": "ocr (needs on-device OCR)",
+    "legacy_python_result": "38 unnumbered low-confidence blocks (no OCR); integrity_ok True is a FALSE pass",
+    "note": "image-only PDF; legacy Python without OCR gives low-confidence blocks"
+  },
+  "photo_exif_rot.jpg": {
+    "note": "page 1 only; must be EXIF-transposed upright before OCR",
+    "numbers_on_page": "first ~15 questions",
+    "legacy_python_result": "4 unnumbered blocks (no OCR)"
+  },
+  "garbage_textlayer.pdf": {
+    "note": "text layer is nonsense -> integrity check fails -> escalate to OCR/Gemini",
+    "must_not": "emit 0 questions silently",
+    "legacy_python_result": "0 questions, no flags, integrity_ok True (FALSE pass, silent failure): the junk text layer is >200 chars so the page is 'digital', no anchors match, nothing is emitted",
+    "port_rule": "a page that has ink/text but yields 0 anchors, in a file whose other pages do have anchors or are expected to, is NOT ok; and a whole file with 0 questions must escalate (OCR, then Gemini), never finish silently"
+  },
+  "password.pdf": {
+    "error": "password required, friendly message, no crash",
+    "legacy_python_result": "ValueError: document closed or encrypted"
+  },
+  "corrupt.pdf": {
+    "error": "unreadable file, friendly message, no crash",
+    "legacy_python_result": "FzErrorFormat: cycle in page tree"
+  }
+}
