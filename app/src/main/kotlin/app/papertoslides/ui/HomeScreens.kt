@@ -82,7 +82,7 @@ fun HomeScreen(vm: MainViewModel, onProgress: () -> Unit, onReview: (String) -> 
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Paper to Slides") }, actions = {
+            TopAppBar(title = { Text("PaperDeck") }, actions = {
                 IconButton(onClick = onKeys) { Icon(Icons.Filled.Key, contentDescription = "AI keys") }
                 IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, contentDescription = "Settings") }
             })

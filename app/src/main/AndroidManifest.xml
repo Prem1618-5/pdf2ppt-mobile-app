@@ -20,7 +20,7 @@
         android:usesCleartextTraffic="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:label="Paper to Slides"
+        android:label="PaperDeck"
         android:supportsRtl="true"
         android:theme="@style/Theme.PaperToSlides"
         tools:targetApi="34">

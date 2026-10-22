@@ -36,11 +36,11 @@ jobs:
           python handoff/tools/validate_pptx.py core/build/test-out/e2e_top.pptx --layout top --expect-questions 30
           python handoff/tools/validate_pptx.py core/build/test-out/e2e_top_right.pptx --layout top-right --expect-questions 30
       - name: Security sweep (B14)
-        run: scripts/security_sweep.sh app/build/outputs/apk/debug/PaperToSlides-v*-debug.apk
+        run: scripts/security_sweep.sh app/build/outputs/apk/debug/PaperDeck-v*-debug.apk
       - uses: actions/upload-artifact@v7
         with:
-          name: PaperToSlides-debug-apk
-          path: app/build/outputs/apk/debug/PaperToSlides-v*-debug.apk
+          name: PaperDeck-apk
+          path: app/build/outputs/apk/debug/PaperDeck-v*-debug.apk
           if-no-files-found: error
       - name: Publish the APK as a GitHub Release (easy download for phones)
         if: github.event_name == 'push'
@@ -48,7 +48,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "build-${{ github.run_number }}" app/build/outputs/apk/debug/PaperToSlides-v*-debug.apk \
+          gh release create "build-${{ github.run_number }}" app/build/outputs/apk/debug/PaperDeck-v*-debug.apk \
             --prerelease --target "${{ github.sha }}" \
             --title "Build ${{ github.run_number }} (${GITHUB_REF_NAME})" \
             --notes "Debug APK built from ${{ github.sha }}. Install steps: HOW_TO_INSTALL.md"

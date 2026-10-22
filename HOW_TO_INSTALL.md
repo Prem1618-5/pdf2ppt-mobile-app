@@ -1,4 +1,4 @@
-# How to install Paper to Slides on your phone
+# How to install PaperDeck on your phone
 
 You do not need to know anything about app development. This takes about 5 minutes.
 
@@ -6,8 +6,8 @@ You do not need to know anything about app development. This takes about 5 minut
 
 1. Open <https://github.com/Prem1618-5/pdf2ppt-mobile-app/actions> (sign in to GitHub).
 2. Click the newest run with a **green tick** named **Android**.
-3. Scroll down to **Artifacts** and click **PaperToSlides-debug-apk**. A `.zip` file downloads.
-4. Open the zip. Inside is `PaperToSlides-v0.2.0-debug.apk`. That is the app.
+3. Scroll down to **Artifacts** and click **PaperDeck-apk**. A `.zip` file downloads.
+4. Open the zip. Inside is `PaperDeck-v0.2.0-debug.apk`. That is the app.
 
 (Easier: every build also appears under **Releases** on the repository page, where you can download the `.apk` directly.)
 
@@ -29,7 +29,7 @@ Any of these works:
 
 ## 4. First run
 
-1. Open **Paper to Slides**.
+1. Open **PaperDeck**.
 2. *(Optional, for scans and photos the phone cannot read)* tap the **key icon** (top right), pick a service (**Google Gemini, Groq, NVIDIA NIM, OpenRouter, Mistral** or **Other**), paste its key and tap **Add**, then **Check**.
    Free keys: Gemini <https://aistudio.google.com> · Groq <https://console.groq.com/keys> · NVIDIA <https://build.nvidia.com> (Get API Key) · OpenRouter <https://openrouter.ai/keys> · Mistral <https://console.mistral.ai>.
    You can add keys from several services at once; they all work in parallel. Never share a key in chat or email.

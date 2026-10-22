@@ -75,7 +75,7 @@ androidComponents {
 
 kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
-base { archivesName.set("PaperToSlides-v${android.defaultConfig.versionName}") }
+base { archivesName.set("PaperDeck-v${android.defaultConfig.versionName}") }
 
 dependencies {
     implementation(project(":core"))

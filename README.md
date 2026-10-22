@@ -1,4 +1,4 @@
-# Paper to Slides (Android)
+# PaperDeck (Android)
 
 Turns a question paper (PDF, or photos / screenshots of pages) into a PowerPoint deck: **one question per slide**,
 in reading order, with an **empty working slide after each question**. The question picture goes in the
@@ -34,13 +34,13 @@ Needs JDK 17+ (21 recommended) and the Android SDK (platform 37, build-tools 37)
 
 ```bash
 ./gradlew :core:test                 # domain tests, incl. fixture PDFs end to end + validate_pptx.py (needs python-pptx)
-./gradlew assembleDebug              # app/build/outputs/apk/debug/PaperToSlides-v0.2.0-debug.apk
+./gradlew assembleDebug              # app/build/outputs/apk/debug/PaperDeck-v0.2.0-debug.apk
 ./gradlew connectedDebugAndroidTest -PwithX86   # on-device self-test on an x86_64 emulator
-scripts/security_sweep.sh app/build/outputs/apk/debug/PaperToSlides-v*-debug.apk
+scripts/security_sweep.sh app/build/outputs/apk/debug/PaperDeck-v*-debug.apk
 ```
 
 CI (`.github/workflows/android.yml`) runs all of this on every push and uploads the APK as the
-`PaperToSlides-debug-apk` artifact.
+`PaperDeck-apk` artifact.
 
 See [DECISIONS.md](DECISIONS.md) for the choices made and their evidence, and [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for
 what is not done or not yet verified on a real phone.

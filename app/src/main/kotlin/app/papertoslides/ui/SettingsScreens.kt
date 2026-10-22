@@ -173,7 +173,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onSelfTest: () -> Unit
             Button(onClick = onSelfTest, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Self-test") }
             Text("Runs the built-in test papers on this phone and shows what works. No key is used.", style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
-            Text("Paper to Slides ${BuildConfig.VERSION_NAME}. No account, no ads, no tracking. Your papers stay on this phone; only pages the phone cannot read are sent, with your own key, to the AI service you chose (Gemini, Groq, NVIDIA, …).",
+            Text("PaperDeck ${BuildConfig.VERSION_NAME}. No account, no ads, no tracking. Your papers stay on this phone; only pages the phone cannot read are sent, with your own key, to the AI service you chose (Gemini, Groq, NVIDIA, …).",
                 style = MaterialTheme.typography.bodySmall)
         }
     }
