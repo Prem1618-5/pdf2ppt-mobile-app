@@ -128,7 +128,7 @@ private fun Summary(vm: MainViewModel, p: Project, enabled: Boolean, onQa: () ->
         Text("${p.items.size} questions" + if (flagged > 0) " · $flagged to check" else "", style = MaterialTheme.typography.titleMedium)
         val ig = p.integrity
         if (ig != null && !ig.ok) Text("Numbering check: " + ig.reasons.joinToString("; "), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodyMedium)
-        Text("Read on the phone: ${p.pages.count { it.tier?.name?.startsWith("T0") == true || it.tier?.name?.startsWith("T1") == true }} of ${p.pages.size} pages · Gemini pages: ${p.stats.apiPages}",
+        Text("Read on the phone: ${p.pages.count { it.tier?.name?.startsWith("T0") == true || it.tier?.name?.startsWith("T1") == true }} of ${p.pages.size} pages · AI pages: ${p.stats.apiPages}",
             style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Layout", style = MaterialTheme.typography.titleSmall)

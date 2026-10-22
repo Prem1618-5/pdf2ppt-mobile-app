@@ -63,8 +63,8 @@ class PptxWriter(out: OutputStream, private val title: String = "Questions") : A
                 rel("rId2", "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties", "docProps/core.xml") +
                 rel("rId3", NS_R + "extended-properties", "docProps/app.xml"),
         ))
-        put("docProps/core.xml", XML_HEAD + """<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${esc(title)}</dc:title><dc:creator>Paper to Slides</dc:creator><cp:revision>1</cp:revision></cp:coreProperties>""")
-        put("docProps/app.xml", XML_HEAD + """<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Paper to Slides</Application><PresentationFormat>Widescreen</PresentationFormat><Slides>${slides.size}</Slides></Properties>""")
+        put("docProps/core.xml", XML_HEAD + """<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${esc(title)}</dc:title><dc:creator>PaperDeck</dc:creator><cp:revision>1</cp:revision></cp:coreProperties>""")
+        put("docProps/app.xml", XML_HEAD + """<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>PaperDeck</Application><PresentationFormat>Widescreen</PresentationFormat><Slides>${slides.size}</Slides></Properties>""")
         put("[Content_Types].xml", contentTypes())
         zip.close()
     }

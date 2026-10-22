@@ -21,6 +21,11 @@ data class AppSettings(
     val pageCap: Int = 150,
     val dpi: Int = 250,
     val dataNoticeSeen: Boolean = false,
+    /** Base URL (https, ending in /v1) and vision model for the "Other (OpenAI-compatible)" provider. */
+    val customBaseUrl: String = "",
+    val customModel: String = "",
+    /** Per-provider model override (comma separated), keyed by provider id. Empty = defaults checked against /models. */
+    val providerModels: Map<String, String> = emptyMap(),
     /** Cached models.list result (names + output limits) and when it was fetched. */
     val discovered: Map<String, Int?> = emptyMap(),
     val discoveredAt: Long = 0,

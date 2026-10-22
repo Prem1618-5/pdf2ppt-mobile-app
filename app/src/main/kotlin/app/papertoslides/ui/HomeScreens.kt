@@ -82,8 +82,8 @@ fun HomeScreen(vm: MainViewModel, onProgress: () -> Unit, onReview: (String) -> 
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Paper to Slides") }, actions = {
-                IconButton(onClick = onKeys) { Icon(Icons.Filled.Key, contentDescription = "Gemini keys") }
+            TopAppBar(title = { Text("PaperDeck") }, actions = {
+                IconButton(onClick = onKeys) { Icon(Icons.Filled.Key, contentDescription = "AI keys") }
                 IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, contentDescription = "Settings") }
             })
         },
@@ -213,7 +213,7 @@ fun OptionsSheet(vm: MainViewModel, d: Draft, onStart: () -> Unit) {
                     Text("This paper has ${d.pages} pages (limit ${st.pageCap}). Process all of them? It will take longer and use more battery.")
                 }
             }
-            if (!hasKeys) Text("Works offline for most papers. Add a Gemini key for scans that need it.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            if (!hasKeys) Text("Works offline for most papers. Add an AI key (Gemini, Groq, NVIDIA, …) for scans that need it.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
             if (lowBattery) Text("Battery is low. Plug in the phone for long papers.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(16.dp))
             Button(
@@ -257,7 +257,7 @@ fun ProgressScreen(vm: MainViewModel, onDone: (String) -> Unit, onHome: () -> Un
             }
             p.message?.let { Text(it, color = MaterialTheme.colorScheme.tertiary, modifier = Modifier.padding(top = 8.dp)) }
             if (p.lanes.isNotEmpty()) {
-                Text("Gemini keys", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+                Text("AI keys", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
                 androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (l in p.lanes) {
                         val until = l.untilMs?.let { u ->

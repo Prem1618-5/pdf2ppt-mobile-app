@@ -38,7 +38,7 @@ data class SelfTestReport(val running: Boolean, val cases: List<CaseResult>, val
  * The owner screenshots or copies this report; it is the on-device verification of spikes S1-S4.
  */
 class SelfTest(private val ctx: Context, private val s: Services) {
-    private val header = "Paper to Slides ${BuildConfig.VERSION_NAME} self-test · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Runtime.getRuntime().availableProcessors()} cores"
+    private val header = "PaperDeck ${BuildConfig.VERSION_NAME} self-test · ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Runtime.getRuntime().availableProcessors()} cores"
 
     suspend fun run(onUpdate: (SelfTestReport) -> Unit) = withContext(Dispatchers.Default) {
         val cases = ArrayList<CaseResult>()

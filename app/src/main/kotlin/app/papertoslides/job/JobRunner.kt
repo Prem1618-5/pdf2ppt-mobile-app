@@ -11,6 +11,11 @@ import app.papertoslides.core.gemini.ModelInfo
 import app.papertoslides.core.imaging.Imaging
 import app.papertoslides.core.keypool.KeyLanes
 import app.papertoslides.core.keypool.SystemClock
+import app.papertoslides.core.provider.ApiStyle
+import app.papertoslides.core.provider.KeyToken
+import app.papertoslides.core.provider.OpenAiClient
+import app.papertoslides.core.provider.Providers
+import app.papertoslides.core.provider.RoutingApi
 import app.papertoslides.core.ladder.LadderListener
 import app.papertoslides.core.ladder.LadderTiers
 import app.papertoslides.core.ladder.LayoutLadder
@@ -132,7 +137,7 @@ class JobRunner(private val ctx: Context, private val s: Services, private val r
                     stats = JobStats(pages.size, tierCounts, res.geminiPages, apiRequests, (System.currentTimeMillis() - t0) / 1000.0),
                 )
                 if (project.items.isEmpty()) throw SourceException("No questions were found in this paper. " +
-                    if (s.keys.all().isEmpty()) "Add a Gemini key in Keys for scans and photos the phone cannot read." else "Try clearer pictures of the pages.")
+                    if (s.keys.all().isEmpty()) "Add an AI key (Gemini, Groq, NVIDIA, …) in Keys for scans and photos the phone cannot read." else "Try clearer pictures of the pages.")
                 project = store.save(project)
                 closeAll(sources)
                 sources.clear()
@@ -191,26 +196,27 @@ class JobRunner(private val ctx: Context, private val s: Services, private val r
             }
             if (need.isNotEmpty()) {
                 val app = s.settings.get()
-                val models = models(keys, app.models)
-                if (models.isEmpty()) {
-                    warnings += "Gemini could not be reached; scanned pages were read on the phone only."
+                val byProvider = providerModels(keys, app)
+                if (byProvider.values.all { it.isEmpty() }) {
+                    warnings += "The AI service could not be reached; scanned pages were read on the phone only."
                 } else {
                     val health = s.keys.health()
-                    val lanes = KeyLanes(keys, models, app.rpmPerKey, SystemClock, health)
+                    val lanes = KeyLanes(keys, byProvider.values.flatten().distinct(), app.rpmPerKey, SystemClock, health) { k -> byProvider[KeyToken.providerId(k)].orEmpty() }
                     JobBus.activeLanes = lanes
                     val gate = NetworkGate(ctx)
-                    val client = GeminiClient(s.http, { p -> jpegs[p].readBytes() }, s.settings.get().discovered)
+                    val read: suspend (Int) -> ByteArray = { p -> jpegs[p].readBytes() }
+                    val client = RoutingApi(GeminiClient(s.http, read, s.settings.get().discovered), OpenAiClient(s.http, read) { p -> if (p.id == Providers.CUSTOM.id) app.customBaseUrl else p.baseUrl })
                     val sched = SliceScheduler(
                         lanes, client,
                         store = { p, l -> out[p] = l; cache.put(jpegs[p].readBytes(), l) },
                         awaitNetwork = { gate.await { report { copy(message = "Waiting for internet…") } }.also { report { copy(message = null) } } },
-                        listener = SchedulerListener { _, done -> report { copy(stage = "Asking Gemini", done = done, total = need.size, lanes = lanes.stats()) } },
+                        listener = SchedulerListener { _, done -> report { copy(stage = "Asking AI", done = done, total = need.size, lanes = lanes.stats()) } },
                     )
-                    report { copy(stage = "Asking Gemini", done = 0, total = need.size, lanes = lanes.stats(), stageStartedAt = System.currentTimeMillis()) }
+                    report { copy(stage = "Asking AI", done = 0, total = need.size, lanes = lanes.stats(), stageStartedAt = System.currentTimeMillis()) }
                     try {
                         val left = sched.run(SliceScheduler.plan(need, app.slicePages))
-                        if (left.isNotEmpty()) warnings += "${left.sumOf { it.pages.size }} page(s) could not be sent to Gemini (keys busy or out of quota); they are flagged."
-                        if (lanes.locationBlocked) warnings += "Gemini is not available in your region."
+                        if (left.isNotEmpty()) warnings += "${left.sumOf { it.pages.size }} page(s) could not be sent to the AI service (keys busy or out of quota); they are flagged."
+                        if (lanes.locationBlocked) warnings += "Gemini is not available in your region (keys of other providers still work)."
                     } finally {
                         onRequests(sched.requestsSent)
                         s.keys.saveHealth(health)
@@ -222,20 +228,41 @@ class JobRunner(private val ctx: Context, private val s: Services, private val r
         }
     }
 
-    /** Model order: user's list checked against models.list (free); refreshed once a day. Never hard-coded. */
-    private suspend fun models(keys: List<String>, configured: String): List<String> {
-        var app = s.settings.get()
-        if (app.discovered.isEmpty() || System.currentTimeMillis() - app.discoveredAt > 24 * 3600_000L) {
-            for (k in keys) {
-                val r = GeminiClient.checkKey(s.http, k)
-                if (r is KeyCheck.Ok) {
-                    app = s.settings.update { it.copy(discovered = r.models.filter { m -> m.generates }.associate { m -> m.name to m.outputTokenLimit }, discoveredAt = System.currentTimeMillis()) }
-                    break
+    /**
+     * Models per provider id for the providers that have a key: Gemini as before (user's list checked against
+     * models.list, refreshed daily); the others from their own `/models` check (free), user override first.
+     */
+    private suspend fun providerModels(tokens: List<String>, app0: app.papertoslides.data.AppSettings): Map<String, List<String>> {
+        var app = app0
+        val out = LinkedHashMap<String, List<String>>()
+        val ids = tokens.map { KeyToken.providerId(it) }.distinct()
+        fun split(v: String?) = v.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        for (id in ids) {
+            val provider = Providers.byId(id)
+            val secrets = tokens.filter { KeyToken.providerId(it) == id }.map { KeyToken.secret(it) }
+            if (provider.style == ApiStyle.GEMINI) {
+                if (app.discovered.isEmpty() || System.currentTimeMillis() - app.discoveredAt > 24 * 3600_000L) {
+                    for (k in secrets) {
+                        val r = GeminiClient.checkKey(s.http, k)
+                        if (r is KeyCheck.Ok) {
+                            app = s.settings.update { it.copy(discovered = r.models.filter { m -> m.generates }.associate { m -> m.name to m.outputTokenLimit }, discoveredAt = System.currentTimeMillis()) }
+                            break
+                        }
+                    }
                 }
+                val available = app.discovered.map { (n, l) -> ModelInfo(n, l, true) }
+                out[id] = GeminiProtocol.chooseModels(split(app.models), available)
+            } else {
+                val base = if (id == Providers.CUSTOM.id) app.customBaseUrl else provider.baseUrl
+                var listed = emptyList<String>()
+                for (k in secrets) {
+                    val (check, ids2) = OpenAiClient.checkKey(s.http, provider, base, k)
+                    if (check is KeyCheck.Ok) { listed = ids2; break }
+                }
+                out[id] = Providers.chooseModels(provider, split(app.providerModels[id]), listed, app.customModel)
             }
         }
-        val available = app.discovered.map { (n, l) -> ModelInfo(n, l, true) }
-        return GeminiProtocol.chooseModels(configured.split(',').map { it.trim() }.filter { it.isNotEmpty() }, available)
+        return out
     }
 
     companion object {
