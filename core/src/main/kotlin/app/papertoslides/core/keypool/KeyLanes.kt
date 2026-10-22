@@ -51,6 +51,8 @@ class KeyLanes(
     rpmPerKey: Int = 8,
     private val clock: Clock = SystemClock,
     private val registry: HealthRegistry = HealthRegistry(),
+    /** Models a given key may use (per provider); null = [models] for every key. */
+    private val modelsOf: ((String) -> List<String>)? = null,
 ) {
     private val keys = keys.filter { it.isNotEmpty() }.distinct().toMutableList()
     val models = models.toList()
@@ -67,6 +69,8 @@ class KeyLanes(
     /** B13: the user deleted a key while a job runs; its worker stops at the next pick. */
     @Synchronized fun removeKey(key: String) { removed += key }
 
+    private fun modelsFor(key: String) = modelsOf?.invoke(key) ?: models
+
     private fun rec(key: String) = registry.of(khash(key))
     private fun lane(key: String, model: String) = rec(key).lanes.getOrPut(model) { LaneState() }
 
@@ -77,7 +81,7 @@ class KeyLanes(
         var soonest: Long? = null
         val window = recent.getOrPut(key) { ArrayDeque() }
         while (window.isNotEmpty() && now - window.first() >= 60_000) window.removeFirst()
-        for (model in models) {
+        for (model in modelsFor(key)) {
             if (model in modelMissing || (betterOnly && "lite" in model)) continue
             val l = lane(key, model)
             if (l.kind == LaneKind.EXHAUSTED && l.until > now) continue // dead for today
@@ -107,13 +111,13 @@ class KeyLanes(
             r.error = "Gemini is not available in your region"
             return Outcome.LOCATION
         }
-        if (status in setOf(400, 401, 403) && ("api key" in low || "api_key" in low || "permission" in low || "unauthenticated" in low)) {
+        if (status == 401 || status in setOf(400, 403) && ("api key" in low || "api_key" in low || "permission" in low || "unauthenticated" in low || "authenticat" in low)) {
             r.invalid = true; r.error = "invalid key"; return Outcome.INVALID
         }
         if (status == 404) { modelMissing += model; return Outcome.MISSING }
         if (status == 429) {
             val retry = parseRetry(body)
-            val daily = "perday" in low.replace("_", "").replace(" ", "") || "limit: 0" in low || (retry != null && retry > 600)
+            val daily = "perday" in low.replace("_", "").replace(" ", "").replace("-", "") || "limit: 0" in low || (retry != null && retry > 600)
             if (daily) {
                 l.kind = LaneKind.EXHAUSTED
                 l.until = if (retry != null && retry > 600) now + (retry * 1000).toLong() else nextReset(now)
@@ -134,7 +138,7 @@ class KeyLanes(
         val now = clock.nowMs()
         return keys.map { k ->
             val r = rec(k)
-            val lanes = models.filter { it !in modelMissing }.map { r.lanes[it] ?: LaneState() }
+            val lanes = modelsFor(k).filter { it !in modelMissing }.map { r.lanes[it] ?: LaneState() }
             val exhausted = lanes.isNotEmpty() && lanes.all { it.kind == LaneKind.EXHAUSTED && it.until > now }
             val state = when {
                 k in removed -> "removed"
@@ -155,7 +159,7 @@ class KeyLanes(
     companion object {
         private val PT: ZoneId = ZoneId.of("America/Los_Angeles")
         private val RETRY_DELAY = Regex(""""retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"""")
-        private val RETRY_IN = Regex("""retry in\s+(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+(?:\.\d+)?)s)?""")
+        private val RETRY_IN = Regex("""(?:retry|try again) in\s+(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+(?:\.\d+)?)s)?""")
         private val SPLIT = Regex("""[\s,;]+""")
 
         fun mask(key: String) = if (key.isNotEmpty()) "…" + key.takeLast(4) else "…"
@@ -179,11 +183,11 @@ class KeyLanes(
         }
 
         /** Pasted keys: spaces, quotes, commas, duplicates, newlines -> distinct keys of length >= 20. */
-        fun splitKeys(text: String?): List<String> {
+        fun splitKeys(text: String?, minLength: Int = 20): List<String> {
             val out = mutableListOf<String>()
             for (raw in (text ?: "").split(SPLIT)) {
                 val k = raw.trim().trim('"', '\'')
-                if (k.length >= 20 && k !in out) out += k
+                if (k.length >= minLength && k !in out) out += k
             }
             return out
         }

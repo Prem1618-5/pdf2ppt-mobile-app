@@ -1,4 +1,4 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 
 package app.papertoslides.ui
 
@@ -9,6 +9,9 @@ import android.os.Build
 import android.view.WindowManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import app.papertoslides.core.provider.Providers
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,11 +73,39 @@ fun KeysScreen(vm: MainViewModel, onBack: () -> Unit) {
     val msg by vm.keyMessage.collectAsState()
     val st by vm.settings.collectAsState()
     var input by remember { mutableStateOf("") }
-    Scaffold(topBar = { BackBar("Gemini keys", onBack) }) { pad ->
+    var providerId by remember { mutableStateOf(Providers.GEMINI.id) }
+    val provider = Providers.byId(providerId)
+    var customUrl by remember(st.customBaseUrl) { mutableStateOf(st.customBaseUrl) }
+    var modelText by remember(providerId, st.customModel, st.providerModels) {
+        mutableStateOf(if (providerId == Providers.CUSTOM.id) st.customModel else st.providerModels[providerId].orEmpty())
+    }
+    Scaffold(topBar = { BackBar("AI keys", onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState())) {
-            Text("Keys are only needed for scans and photos the phone cannot read by itself. They are stored encrypted on this phone and sent only to Google.",
+            Text("Keys are only needed for scans and photos the phone cannot read by itself. They are stored encrypted on this phone and sent only to the service you pick. You can add keys from several services; they all work together.",
                 style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(12.dp))
+            Text("Service", style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (p in Providers.ALL) FilterChip(selected = p.id == providerId, onClick = { providerId = p.id }, label = { Text(p.label) })
+            }
+            Text(provider.keyHelp, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
+            if (provider.id == Providers.CUSTOM.id) {
+                OutlinedTextField(customUrl, { customUrl = it }, label = { Text("Base URL, e.g. https://api.together.xyz/v1") },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            if (provider.id != Providers.GEMINI.id) {
+                OutlinedTextField(modelText, { modelText = it },
+                    label = { Text(if (provider.id == Providers.CUSTOM.id) "Vision model name" else "Model override (optional)") },
+                    supportingText = { if (provider.id != Providers.CUSTOM.id) Text("Leave empty to use: " + provider.models.take(2).joinToString()) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedButton(onClick = {
+                    vm.updateSettings { s0 ->
+                        if (provider.id == Providers.CUSTOM.id) s0.copy(customBaseUrl = customUrl.trim(), customModel = modelText.trim())
+                        else s0.copy(providerModels = s0.providerModels + (provider.id to modelText.trim()))
+                    }
+                }, modifier = Modifier.padding(vertical = 4.dp)) { Text("Save") }
+            }
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = input, onValueChange = { input = it },
                 label = { Text("Paste key(s), one per line") },
@@ -83,18 +114,18 @@ fun KeysScreen(vm: MainViewModel, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(), minLines = 2,
             )
             Button(onClick = {
-                vm.addKeys(input); input = ""
+                vm.addKeys(input, providerId); input = ""
                 val cm = ctx.getSystemService(ClipboardManager::class.java)
                 if (Build.VERSION.SDK_INT >= 28) runCatching { cm.clearPrimaryClip() } else runCatching { cm.setPrimaryClip(ClipData.newPlainText("", "")) }
             }, enabled = input.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 52.dp)) { Text("Add") }
             msg?.let { Text(it, modifier = Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.primary) }
             Spacer(Modifier.height(16.dp))
-            if (keys.isEmpty()) Text("No keys yet. Get a free key at aistudio.google.com (Get API key).", style = MaterialTheme.typography.bodyMedium)
+            if (keys.isEmpty()) Text("No keys yet. Pick a service above and paste its key.", style = MaterialTheme.typography.bodyMedium)
             for (k in keys) {
                 Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Key ${k.view.masked}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.titleMedium)
+                            Text("${Providers.byId(k.view.provider).label} ${k.view.masked}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.titleMedium)
                             Text(when (k.state) { "invalid" -> "Not working"; "exhausted" -> "Out of free quota"; else -> "Ready" } + (k.note?.let { " · $it" } ?: ""),
                                 style = MaterialTheme.typography.bodySmall, color = if (k.state == "ok") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error)
                         }
@@ -107,9 +138,10 @@ fun KeysScreen(vm: MainViewModel, onBack: () -> Unit) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(12.dp)) {
                     Text("Good to know", style = MaterialTheme.typography.titleSmall)
-                    Text("• Free keys allow a small number of requests per day per model. The daily limit resets at midnight Pacific time (about 12:30 – 1:30 pm in India).", style = MaterialTheme.typography.bodySmall)
+                    Text("• Free keys allow a small number of requests per day. Gemini's limit resets at midnight Pacific time (about 12:30 – 1:30 pm in India); other services have their own limits.", style = MaterialTheme.typography.bodySmall)
+                    Text("• Groq, NVIDIA, OpenRouter and Mistral models read pages less accurately than Gemini. Check the slides marked Check. NVIDIA reads one page per request.", style = MaterialTheme.typography.bodySmall)
                     Text("• Several keys work at the same time, but keys from the same Google project share one limit. Use keys you are allowed to use (your own, your school's, or a paid one).", style = MaterialTheme.typography.bodySmall)
-                    Text("• On the free tier Google may use the page images to improve its products. Do not send papers you are not allowed to share.", style = MaterialTheme.typography.bodySmall)
+                    Text("• On free tiers the service (Google, Groq, NVIDIA, …) may keep or use the page images to improve its products. Do not send papers you are not allowed to share.", style = MaterialTheme.typography.bodySmall)
                     Text("• Pages per request: ${st.slicePages}. Change it in Settings.", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -123,7 +155,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onSelfTest: () -> Unit
     var models by remember(st.models) { mutableStateOf(st.models) }
     Scaffold(topBar = { BackBar("Settings", onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Pages per Gemini request: ${st.slicePages}", style = MaterialTheme.typography.titleSmall)
+            Text("Pages per AI request: ${st.slicePages}", style = MaterialTheme.typography.titleSmall)
             Slider(st.slicePages.toFloat(), { v -> vm.updateSettings { it.copy(slicePages = v.toInt().coerceIn(1, 4)) } }, valueRange = 1f..4f, steps = 2)
             Text("More pages per request saves daily quota; fewer pages is a little more accurate.", style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
@@ -133,7 +165,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onSelfTest: () -> Unit
             Text("Page limit: ${st.pageCap}", style = MaterialTheme.typography.titleSmall)
             Slider(st.pageCap.toFloat(), { v -> vm.updateSettings { it.copy(pageCap = (v.toInt() / 10 * 10).coerceIn(10, 500)) } }, valueRange = 10f..500f)
             HorizontalDivider()
-            OutlinedTextField(models, { models = it }, label = { Text("Gemini models (optional, comma separated)") },
+            OutlinedTextField(models, { models = it }, label = { Text("Gemini models only (optional, comma separated)") },
                 supportingText = { Text("Leave empty to pick automatically from your key's model list. Found: " + st.discovered.keys.filter { "flash" in it }.take(6).joinToString().ifEmpty { "none yet (check a key)" }) },
                 modifier = Modifier.fillMaxWidth())
             OutlinedButton(onClick = { vm.updateSettings { it.copy(models = models.trim()) } }, enabled = models.trim() != st.models) { Text("Save models") }
@@ -141,7 +173,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onSelfTest: () -> Unit
             Button(onClick = onSelfTest, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Self-test") }
             Text("Runs the built-in test papers on this phone and shows what works. No key is used.", style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
-            Text("Paper to Slides ${BuildConfig.VERSION_NAME}. No account, no ads, no tracking. Your papers stay on this phone; only pages the phone cannot read are sent to Google Gemini with your own key.",
+            Text("Paper to Slides ${BuildConfig.VERSION_NAME}. No account, no ads, no tracking. Your papers stay on this phone; only pages the phone cannot read are sent, with your own key, to the AI service you chose (Gemini, Groq, NVIDIA, …).",
                 style = MaterialTheme.typography.bodySmall)
         }
     }

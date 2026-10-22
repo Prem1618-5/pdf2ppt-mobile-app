@@ -23,10 +23,10 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 
 /**
- * HTTPS only to generativelanguage.googleapis.com. No logging interceptor: keys and bodies are never logged.
- * The key travels in the `x-goog-api-key` header (set by the core client), never in the URL.
+ * HTTPS only to the hosts of the AI providers (and the user's own custom URL). No logging interceptor: keys and bodies are never logged.
+ * The key travels in a header (`x-goog-api-key` or `Authorization`, set by the core clients), never in the URL.
  */
-class OkHttpTransport : HttpTransport {
+class OkHttpTransport(private val allowedHosts: () -> Set<String>) : HttpTransport {
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(420, TimeUnit.SECONDS)
@@ -41,7 +41,7 @@ class OkHttpTransport : HttpTransport {
         exec(Request.Builder().url(check(url)).get().apply { headers.forEach { (k, v) -> header(k, v) } }.build())
 
     private fun check(url: String): String {
-        require(url.startsWith("https://generativelanguage.googleapis.com/")) { "blocked host" }
+        require(url.startsWith("https://") && app.papertoslides.core.provider.Providers.hostOf(url) in allowedHosts()) { "blocked host" }
         return url
     }
 

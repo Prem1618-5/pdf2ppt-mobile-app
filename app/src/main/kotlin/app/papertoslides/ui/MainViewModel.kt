@@ -10,6 +10,8 @@ import app.papertoslides.core.gemini.GeminiClient
 import app.papertoslides.core.gemini.KeyCheck
 import app.papertoslides.core.geometry.SlideLayout
 import app.papertoslides.core.keypool.KeyLanes
+import app.papertoslides.core.provider.OpenAiClient
+import app.papertoslides.core.provider.Providers
 import app.papertoslides.core.project.Project
 import app.papertoslides.core.project.ProjectSettings
 import app.papertoslides.data.AppSettings
@@ -180,14 +182,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Paste one or many keys; the clipboard is cleared by the screen after this. */
-    fun addKeys(text: String) = viewModelScope.launch(Dispatchers.IO) {
-        val n = runCatching { s.keys.add(text) }.getOrElse { _keyMessage.value = "Could not save the key securely on this phone."; return@launch }
-        _keyMessage.value = if (n == 0) "No new key found. A Gemini key is a long code (39 characters, starts with AIza)." else "Added $n key${if (n > 1) "s" else ""}. Tap Check to test."
+    fun addKeys(text: String, providerId: String = Providers.GEMINI.id) = viewModelScope.launch(Dispatchers.IO) {
+        val n = runCatching { s.keys.add(text, providerId) }.getOrElse { _keyMessage.value = "Could not save the key securely on this phone."; return@launch }
+        _keyMessage.value = if (n == 0) "No new key found. A key is a long code; paste the whole thing." else "Added $n key${if (n > 1) "s" else ""}. Tap Check to test."
         refreshKeys()
     }
 
     fun removeKey(id: String) = viewModelScope.launch(Dispatchers.IO) {
-        s.keys.all().firstOrNull { it.id == id }?.let { JobBus.activeLanes?.removeKey(it.key) } // B13: a running job stops using it
+        s.keys.all().firstOrNull { it.id == id }?.let { JobBus.activeLanes?.removeKey(it.token) } // B13: a running job stops using it
         s.keys.remove(id)
         refreshKeys()
     }
@@ -197,8 +199,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val k = s.keys.all().firstOrNull { it.id == id } ?: return@launch
         _keyMessage.value = "Checking ${KeyLanes.mask(k.key)}…"
         val health = s.keys.health()
-        val rec = health.of(KeyLanes.khash(k.key))
-        _keyMessage.value = when (val r = GeminiClient.checkKey(s.http, k.key)) {
+        val rec = health.of(KeyLanes.khash(k.token))
+        val provider = Providers.byId(k.provider)
+        val st0 = s.settings.get()
+        val result = if (provider.id == Providers.GEMINI.id) GeminiClient.checkKey(s.http, k.key)
+        else OpenAiClient.checkKey(s.http, provider, if (provider.id == Providers.CUSTOM.id) st0.customBaseUrl else provider.baseUrl, k.key).first
+        if (provider.id != Providers.GEMINI.id) {
+            _keyMessage.value = when (result) {
+                is KeyCheck.Ok -> { rec.invalid = false; rec.error = null; "${KeyLanes.mask(k.key)} works on ${provider.label} (${result.models.size} models listed)." }
+                KeyCheck.Invalid -> { rec.invalid = true; rec.error = "invalid key"; "${KeyLanes.mask(k.key)} was refused by ${provider.label}. Check that you copied the whole key." }
+                is KeyCheck.Problem -> result.message
+            }
+            s.keys.saveHealth(health)
+            refreshKeys()
+            return@launch
+        }
+        _keyMessage.value = when (val r = result) {
             is KeyCheck.Ok -> {
                 rec.invalid = false; rec.error = null
                 s.settings.update { st -> st.copy(discovered = r.models.filter { it.generates }.associate { it.name to it.outputTokenLimit }, discoveredAt = System.currentTimeMillis()) }

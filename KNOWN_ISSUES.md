@@ -1,4 +1,4 @@
-# Known issues and limits (v0.1.0)
+# Known issues and limits (v0.2.0)
 
 Honest list. "Unverified" means it was built and reasoned about, but not run on a real phone.
 
@@ -13,6 +13,12 @@ Honest list. "Unverified" means it was built and reasoned about, but not run on 
 - **Real papers**: Hindi, bilingual two-page spreads, photos of printed pages, PDFs with `/Rotate 90` or a CropBox
   different from the MediaBox (A7), HEIC files (A8), 200-page PDFs (A10). Synthetic fixtures cover the logic only.
 - **Real Gemini quota**: the scheduler and client are tested with fake keys and fake responses only.
+- **Groq / NVIDIA NIM / OpenRouter / Mistral / custom (v0.2.0)**: the OpenAI-compatible client is tested with fake responses only,
+  never against the live services. Default model names (Llama 4 Scout/Maverick, Llama 3.2 Vision, Pixtral, ...) change over time;
+  the app checks them against each service's `/models` list and falls back to any vision-looking model, and you can override
+  them per service on the Keys screen. These models give no response schema, so box accuracy and JSON discipline are weaker than
+  Gemini's; unreadable replies are retried, then the page falls to the next tier (heuristic) and is flagged.
+  Free tiers are small (OpenRouter `:free` is about 50 requests/day without credit).
 
 ## Not done (P1 / P2)
 - Re-crop of a slide, add a missing question, relabel, undo (P1/P2). MVP has preview, move up/down, delete, per-slide blank toggle, layout switch.

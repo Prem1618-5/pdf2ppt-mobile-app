@@ -2,15 +2,20 @@ package app.papertoslides.security
 
 import app.papertoslides.core.keypool.HealthRegistry
 import app.papertoslides.core.keypool.KeyLanes
+import app.papertoslides.core.provider.KeyToken
+import app.papertoslides.core.provider.Providers
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
 @Serializable
-data class StoredKey(val id: String, val key: String, val addedAt: Long, val label: String = "")
+data class StoredKey(val id: String, val key: String, val addedAt: Long, val label: String = "", val provider: String = Providers.GEMINI.id) {
+    /** What the scheduler carries for this key (bare key for Gemini, `provider|key` otherwise). */
+    val token get() = KeyToken.make(provider, key)
+}
 
 /** What the UI may see about a key: never the key itself. */
-data class KeyView(val id: String, val masked: String, val hash: String, val addedAt: Long)
+data class KeyView(val id: String, val masked: String, val hash: String, val addedAt: Long, val provider: String = Providers.GEMINI.id)
 
 /**
  * The sealed key list lives in a private file under filesDir. If it cannot be opened (key invalidated, restored
@@ -37,17 +42,18 @@ class KeyStoreRepo(private val dir: File) {
         return list
     }
 
-    fun views(): List<KeyView> = all().map { KeyView(it.id, KeyLanes.mask(it.key), KeyLanes.khash(it.key), it.addedAt) }
+    fun views(): List<KeyView> = all().map { KeyView(it.id, KeyLanes.mask(it.key), KeyLanes.khash(it.token), it.addedAt, it.provider) }
 
-    fun secrets(): List<String> = all().map { it.key }
+    /** Lane keys of every stored key, all providers. */
+    fun secrets(): List<String> = all().map { it.token }
 
-    /** Adds every distinct key found in [pasted]; returns how many were new. */
-    @Synchronized fun add(pasted: String): Int {
+    /** Adds every distinct key found in [pasted] for [provider]; returns how many were new. */
+    @Synchronized fun add(pasted: String, provider: String = Providers.GEMINI.id): Int {
         val current = all()
-        val fresh = KeyLanes.splitKeys(pasted).filter { k -> current.none { it.key == k } }
+        val fresh = KeyLanes.splitKeys(pasted, if (provider == Providers.CUSTOM.id) 8 else 20).filter { k -> current.none { it.key == k && it.provider == provider } }
         if (fresh.isEmpty()) return 0
         val now = System.currentTimeMillis()
-        save(current + fresh.mapIndexed { i, k -> StoredKey(KeyLanes.khash(k) + now + i, k, now) })
+        save(current + fresh.mapIndexed { i, k -> StoredKey(KeyLanes.khash(k) + now + i, k, now, provider = provider) })
         return fresh.size
     }
 
