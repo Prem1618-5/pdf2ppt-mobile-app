@@ -89,14 +89,14 @@ class UiScreensTest {
         rule.waitForIdle()
         rule.onRoot().save("04_review_top")
         // the first card sits below the summary: scroll the grid to it
-        rule.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasContentDescription("Slide of question 1.", substring = true))
+        rule.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasContentDescription("Slide of question 1"))
         Thread.sleep(1500) // previews decode off the main thread
         rule.waitForIdle()
         rule.onRoot().save("04_review")
-        rule.onAllNodes(hasContentDescription("Slide of question 1.", substring = true)).onFirst().performClick()
+        rule.onAllNodes(hasContentDescription("Slide of question 1")).onFirst().performClick()
         rule.waitForIdle(); Thread.sleep(1000); rule.waitForIdle()
         rule.onRoot().save("05_preview_dialog")
-        assertTrue(rule.onAllNodes(hasContentDescription("Slide preview of question 1.", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue(rule.onAllNodes(hasContentDescription("Slide preview of question 1"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         s.projects.delete(id)
     }
 }

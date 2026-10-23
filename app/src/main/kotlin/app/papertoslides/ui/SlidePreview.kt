@@ -95,7 +95,7 @@ fun SlidePreview(
                 val style = TextStyle(color = hexColor(e.textColor), fontSize = ptToSp(e.fontPt, k), fontWeight = if (e.bold) FontWeight.Bold else FontWeight.Normal,
                     textAlign = when (e.align) { "left" -> TextAlign.Left; "right" -> TextAlign.Right; else -> TextAlign.Center })
                 val pad = (0.1 * k).toInt()
-                val r = measurer.measure(AnnotatedString(e.text), style, constraints = Constraints(maxWidth = (sz.width.toInt() - 2 * pad).coerceAtLeast(1)))
+                val r = measurer.measure(AnnotatedString(e.text), style, constraints = Constraints.fixedWidth((sz.width.toInt() - 2 * pad).coerceAtLeast(1)))
                 drawText(r, topLeft = Offset(o.x + pad, o.y + (sz.height - r.size.height) / 2))
             }
         }
