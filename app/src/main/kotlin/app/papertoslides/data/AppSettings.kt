@@ -1,6 +1,9 @@
 package app.papertoslides.data
 
 import app.papertoslides.core.geometry.SlideLayout
+import app.papertoslides.core.project.PassageMode
+import app.papertoslides.core.project.QuestionStyle
+import app.papertoslides.core.template.DeckTheme
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -21,6 +24,14 @@ data class AppSettings(
     val pageCap: Int = 150,
     val dpi: Int = 250,
     val dataNoticeSeen: Boolean = false,
+    val theme: DeckTheme = DeckTheme.LIGHT,
+    val style: QuestionStyle = QuestionStyle.AUTO,
+    /** Template used for new decks ("plain" = no branding). */
+    val templateId: String = "plain",
+    val passageMode: PassageMode = PassageMode.REPEAT,
+    val expandLong: Boolean = true,
+    /** Smallest font for editable text on a slide (pt). */
+    val minPt: Int = 16,
     /** Cached models.list result (names + output limits) and when it was fetched. */
     val discovered: Map<String, Int?> = emptyMap(),
     val discoveredAt: Long = 0,

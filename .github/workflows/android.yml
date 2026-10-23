@@ -27,6 +27,8 @@ jobs:
           python-version: "3.12"
       - name: Python tools for the deck validator
         run: pip install python-pptx pymupdf pillow
+      - name: LibreOffice + Arial-metric fonts (rendered text-fit check of the decks)
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libreoffice-impress fonts-liberation2
       - name: Unit tests (pure Kotlin domain, fixtures, PPTX validator) and debug APK
         run: ./gradlew :core:test testDebugUnitTest assembleDebug --stacktrace
       - name: Validate the generated 30-question decks (both layouts)
@@ -47,6 +49,7 @@ jobs:
           path: |
             core/build/reports/tests
             core/build/test-out/*.pptx
+            core/build/test-out/*.json
             core/build/test-out/*.txt
 
   emulator:
@@ -75,12 +78,14 @@ jobs:
           disable-animations: true
           script: |
             adb logcat -c
-            ./gradlew connectedDebugAndroidTest -PwithX86 --stacktrace || (adb logcat -d -s SelfTest:I AndroidRuntime:E TestRunner:* > selftest.log; exit 1)
+            ./gradlew connectedDebugAndroidTest -PwithX86 --stacktrace || (adb logcat -d -s SelfTest:I AndroidRuntime:E TestRunner:* > selftest.log; adb pull /sdcard/Android/data/app.papertoslides/files/screens screens; exit 1)
             adb logcat -d -s SelfTest:I > selftest.log
+            adb pull /sdcard/Android/data/app.papertoslides/files/screens screens || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: emulator-self-test
           path: |
             selftest.log
+            screens
             app/build/reports/androidTests

@@ -12,8 +12,8 @@ android {
         applicationId = "app.papertoslides"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // real phones only (keeps the APK small); add "x86_64" for an emulator build
         ndk {
@@ -57,6 +57,7 @@ android {
 // Self-test papers (Settings -> Self-test) are bundled from the handoff pack, not duplicated in the repo
 abstract class FixtureAssets : DefaultTask() {
     @get:InputDirectory abstract val source: DirectoryProperty
+    @get:InputDirectory abstract val extra: DirectoryProperty
     @get:OutputDirectory abstract val output: DirectoryProperty
 
     @TaskAction fun copy() {
@@ -64,10 +65,15 @@ abstract class FixtureAssets : DefaultTask() {
         out.deleteRecursively()
         source.get().asFile.copyRecursively(File(out, "fixtures"))
         File(out, "fixtures/lines").deleteRecursively()
+        // edge cases for the text / template / dark-theme self-test
+        for (f in listOf("edge_cases.pdf", "hindi_bilingual.pdf", "edge_expected.json")) {
+            extra.get().asFile.resolve(f).copyTo(File(out, "fixtures/$f"), overwrite = true)
+        }
     }
 }
 val fixtureAssets = tasks.register<FixtureAssets>("fixtureAssets") {
     source.set(rootProject.layout.projectDirectory.dir("handoff/fixtures"))
+    extra.set(rootProject.layout.projectDirectory.dir("testdata"))
 }
 androidComponents {
     onVariants { it.sources.assets?.addGeneratedSourceDirectory(fixtureAssets, FixtureAssets::output) }
@@ -105,6 +111,9 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
 }

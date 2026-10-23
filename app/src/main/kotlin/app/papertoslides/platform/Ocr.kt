@@ -32,7 +32,8 @@ class Ocr(hindi: Boolean) : AutoCloseable {
         val angles = ArrayList<Float>()
         for (block in text.textBlocks) for (line in block.lines) {
             val r = line.boundingBox ?: continue
-            lines += TextLine(r.left / w, r.top / h, r.right / w, r.bottom / h, line.text, r.height().toDouble() / h * 842)
+            lines += TextLine(r.left / w, r.top / h, r.right / w, r.bottom / h, line.text, r.height().toDouble() / h * 842,
+                conf = line.confidence.toDouble().takeIf { it > 0 } ?: 1.0)
             if (line.text.length >= 12) angles += line.angle
         }
         val skew = if (angles.size >= 5) angles.sorted()[angles.size / 2] else 0f

@@ -26,6 +26,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Settings
@@ -71,7 +72,7 @@ import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun HomeScreen(vm: MainViewModel, onProgress: () -> Unit, onReview: (String) -> Unit, onKeys: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(vm: MainViewModel, onProgress: () -> Unit, onReview: (String) -> Unit, onKeys: () -> Unit, onSettings: () -> Unit, onTemplates: () -> Unit) {
     val projects by vm.projects.collectAsState()
     val job by vm.job.collectAsState()
     val preparing by vm.preparing.collectAsState()
@@ -83,6 +84,7 @@ fun HomeScreen(vm: MainViewModel, onProgress: () -> Unit, onReview: (String) -> 
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Paper to Slides") }, actions = {
+                IconButton(onClick = onTemplates) { Icon(Icons.Filled.Dashboard, contentDescription = "Slide templates") }
                 IconButton(onClick = onKeys) { Icon(Icons.Filled.Key, contentDescription = "Gemini keys") }
                 IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, contentDescription = "Settings") }
             })
@@ -141,7 +143,7 @@ fun HomeScreen(vm: MainViewModel, onProgress: () -> Unit, onReview: (String) -> 
             confirmButton = { TextButton(onClick = { vm.deleteProject(id); confirmDelete = null }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Keep") } })
     }
-    draft?.let { d -> OptionsSheet(vm, d, onStart = onProgress) }
+    draft?.let { d -> OptionsSheet(vm, d, onStart = onProgress, onTemplates = onTemplates) }
 }
 
 @Composable
@@ -164,8 +166,14 @@ private fun JobCard(j: JobProgress, onOpen: () -> Unit) {
 
 /** Options: the two layouts as cards that draw the slide, toggles, one primary button. */
 @Composable
-fun OptionsSheet(vm: MainViewModel, d: Draft, onStart: () -> Unit) {
+fun OptionsSheet(vm: MainViewModel, d: Draft, onStart: () -> Unit, onTemplates: () -> Unit) {
     val st by vm.settings.collectAsState()
+    val templates by vm.templates.collectAsState()
+    var theme by rememberSaveable { mutableStateOf(st.theme) }
+    var style by rememberSaveable { mutableStateOf(st.style) }
+    var templateId by rememberSaveable { mutableStateOf(st.templateId) }
+    val template = templates.firstOrNull { it.id == templateId } ?: app.papertoslides.core.template.SlideTemplate.PLAIN
+    val logos = rememberImages(template.elements.mapNotNull { it.image }.map { vm.templateImage(it) })
     var layout by rememberSaveable { mutableStateOf(st.layout) }
     var blank by rememberSaveable { mutableStateOf(st.blankAfter) }
     var watermark by rememberSaveable { mutableStateOf(st.removeWatermark) }
@@ -190,7 +198,7 @@ fun OptionsSheet(vm: MainViewModel, d: Draft, onStart: () -> Unit) {
                         border = BorderStroke(if (sel) 3.dp else 1.dp, if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                     ) {
                         Column(Modifier.padding(10.dp)) {
-                            SlideDrawing(l, description = if (l == SlideLayout.TOP) "Top half of the slide" else "Top right quarter of the slide")
+                            SlidePreview(template, theme, layout = l, images = logos, description = if (l == SlideLayout.TOP) "Top half of the slide" else "Top right quarter of the slide")
                             Spacer(Modifier.height(6.dp))
                             Text(if (l == SlideLayout.TOP) "Top" else "Top right", fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
                             Text(if (l == SlideLayout.TOP) "Top half, full width" else "Top-right quarter", style = MaterialTheme.typography.bodySmall)
@@ -199,6 +207,27 @@ fun OptionsSheet(vm: MainViewModel, d: Draft, onStart: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(12.dp))
+            Text("Slide colours", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((t, label) in listOf(app.papertoslides.core.template.DeckTheme.LIGHT to "Light", app.papertoslides.core.template.DeckTheme.DARK to "Dark")) {
+                    FilterChip(selected = theme == t, onClick = { theme = t }, label = { Text(label) }, modifier = Modifier.heightIn(min = 48.dp))
+                }
+            }
+            Text("Template", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (t in templates) FilterChip(selected = templateId == t.id, onClick = { templateId = t.id }, label = { Text(t.name, maxLines = 1) }, modifier = Modifier.heightIn(min = 48.dp))
+                TextButton(onClick = onTemplates, modifier = Modifier.heightIn(min = 48.dp)) { Text("Design a template…") }
+            }
+            Text("Question on the slide", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            for ((v, label, hint) in listOf(
+                Triple(app.papertoslides.core.project.QuestionStyle.AUTO, "Editable text (recommended)", "Text you can edit in PowerPoint, figures cut from the paper. Falls back to a picture when the text cannot be read reliably (complex maths, unclear scans)."),
+                Triple(app.papertoslides.core.project.QuestionStyle.PICTURE, "Exact picture of the paper", "Pixel-exact; in dark slides the picture is recoloured."),
+            )) {
+                Row(Modifier.fillMaxWidth().selectable(style == v, role = Role.RadioButton) { style = v }.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                    androidx.compose.material3.RadioButton(style == v, null)
+                    Column(Modifier.padding(start = 8.dp)) { Text(label); Text(hint, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
             ToggleRow("Empty slide after each question", blank) { blank = it }
             ToggleRow("Remove watermarks", watermark) { watermark = it }
             Text("Language of the paper", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
@@ -217,7 +246,7 @@ fun OptionsSheet(vm: MainViewModel, d: Draft, onStart: () -> Unit) {
             if (lowBattery) Text("Battery is low. Plug in the phone for long papers.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = { vm.start(d, layout, blank, watermark, lang, overCap); onStart() },
+                onClick = { vm.start(d, layout, blank, watermark, lang, overCap, theme, style, templateId); onStart() },
                 enabled = d.pages > 0, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
             ) { Text("Make slides", style = MaterialTheme.typography.titleMedium) }
             Spacer(Modifier.height(16.dp))

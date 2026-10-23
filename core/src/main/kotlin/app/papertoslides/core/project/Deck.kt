@@ -111,6 +111,8 @@ object DeckExporter {
         encoder: Encoder,
         templateImages: Map<String, Pair<ByteArray, String>> = emptyMap(),
         onItem: (done: Int, total: Int) -> Unit = { _, _ -> },
+        /** Every question / passage slide as written (the app keeps a preview of it). */
+        onSlide: (SlideRecord, SlideSpec) -> Unit = { _, _ -> },
     ): ExportResult {
         val s = project.settings
         val t = s.template
@@ -164,8 +166,9 @@ object DeckExporter {
                             take--
                         }
                         if (comp == null) break // a single paragraph too long even alone: picture below
-                        w.add(group(comp, "Passage", title))
-                        records += SlideRecord("passage", item.id, full, true, comp.fontPt, true)
+                        val sp = group(comp, "Passage", title)
+                        w.add(sp)
+                        records += SlideRecord("passage", item.id, full, true, comp.fontPt, true).also { onSlide(it, sp) }
                         rest = rest.drop(take)
                     }
                     if (rest.isEmpty()) return
@@ -175,8 +178,9 @@ object DeckExporter {
                 val pieces = if ((one.displayPt ?: 99.0) < SMALL_TEXT_PT) Imaging.splitAtBlank(r.img, minOf(4, kotlin.math.ceil(SMALL_TEXT_PT / (one.displayPt ?: 12.0)).toInt() + 1)) else listOf(r.img)
                 for (pc2 in pieces) {
                     val p = Geometry.placeIn(full, true, pc2.w, pc2.h, pc2.w / r.ppi, r.glyphPt)
-                    w.add(pic(pc2, p.rect, title))
-                    records += SlideRecord("passage", item.id, full, false, p.displayPt, true)
+                    val sp = pic(pc2, p.rect, title)
+                    w.add(sp)
+                    records += SlideRecord("passage", item.id, full, false, p.displayPt, true).also { onSlide(it, sp) }
                 }
             }
 
@@ -238,6 +242,7 @@ object DeckExporter {
                 if (once && g != null) flags += "passage_separate"
                 w.add(slide)
                 records += record
+                onSlide(record, slide)
                 if (project.blankAfter(item)) { w.add(SlideSpec.Blank); records += SlideRecord("blank", item.id, null, false, null, false) }
                 items += item.copy(flags = flags.distinct(), displayPt = record.fontPt)
                 onItem(n + 1, project.items.size)

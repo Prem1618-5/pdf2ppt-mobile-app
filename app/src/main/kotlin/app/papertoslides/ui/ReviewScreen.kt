@@ -3,12 +3,9 @@
 package app.papertoslides.ui
 
 import android.content.Intent
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -52,24 +49,23 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.papertoslides.core.geometry.SlideLayout
 import app.papertoslides.core.project.Item
+import app.papertoslides.core.project.PassageMode
 import app.papertoslides.core.project.Project
 import app.papertoslides.core.project.QaReport
+import app.papertoslides.core.project.QuestionStyle
+import app.papertoslides.core.template.DeckTheme
+import app.papertoslides.job.PreviewSlide
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 @Composable
-fun ReviewScreen(vm: MainViewModel, id: String, onBack: () -> Unit) {
+fun ReviewScreen(vm: MainViewModel, id: String, onBack: () -> Unit, onTemplates: () -> Unit) {
     LaunchedEffect(id) { vm.openReview(id) }
     val st by vm.review.collectAsState()
     var open by remember { mutableStateOf<Item?>(null) }
@@ -109,66 +105,77 @@ fun ReviewScreen(vm: MainViewModel, id: String, onBack: () -> Unit) {
         },
     ) { pad ->
         if (p == null) { CenterNote(st.error ?: "Opening…"); return@Scaffold }
-        LazyVerticalGrid(GridCells.Adaptive(160.dp), Modifier.fillMaxSize().padding(pad), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+        LazyVerticalGrid(GridCells.Adaptive(170.dp), Modifier.fillMaxSize().padding(pad), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item(span = { GridItemSpan(maxLineSpan) }) { Summary(vm, p, st.busy == null, onQa = {
-                ctx.startActivity(Intent.createChooser(vm.shareIntent(vm.qaFile(p), "text/plain"), "Share QA report"))
-            }) }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Summary(vm, p, st.busy == null, onTemplates, onQa = { ctx.startActivity(Intent.createChooser(vm.shareIntent(vm.qaFile(p), "text/plain"), "Share QA report")) })
+            }
             st.error?.let { e -> item(span = { GridItemSpan(maxLineSpan) }) { Text(e, color = MaterialTheme.colorScheme.error) } }
-            items(p.items, key = { it.id + st.version }) { it -> QuestionCard(vm, p, it, p.items.indexOf(it) + 1) { open = it } }
+            items(p.items, key = { it.id + st.version }) { it -> QuestionCard(vm, p, it, p.items.indexOf(it) + 1, st.version) { open = it } }
         }
     }
-    open?.let { item -> Preview(vm, p ?: return@let, item, onClose = { open = null }) }
+    open?.let { item -> Preview(vm, p ?: return@let, item, st.version, onClose = { open = null }) }
 }
 
 @Composable
-private fun Summary(vm: MainViewModel, p: Project, enabled: Boolean, onQa: () -> Unit) {
-    Column {
+private fun Summary(vm: MainViewModel, p: Project, enabled: Boolean, onTemplates: () -> Unit, onQa: () -> Unit) {
+    val templates by vm.templates.collectAsState()
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         val flagged = p.items.count { it.flags.any { f -> f in WARN_FLAGS } }
-        Text("${p.items.size} questions" + if (flagged > 0) " · $flagged to check" else "", style = MaterialTheme.typography.titleMedium)
+        val asText = p.items.count { "as_picture" !in it.flags } .takeIf { p.settings.style != QuestionStyle.PICTURE } ?: 0
+        Text("${p.items.size} questions" + (if (flagged > 0) " · $flagged to check" else "") + (if (p.settings.style != QuestionStyle.PICTURE) " · $asText as editable text" else ""),
+            style = MaterialTheme.typography.titleMedium)
         val ig = p.integrity
         if (ig != null && !ig.ok) Text("Numbering check: " + ig.reasons.joinToString("; "), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodyMedium)
         Text("Read on the phone: ${p.pages.count { it.tier?.name?.startsWith("T0") == true || it.tier?.name?.startsWith("T1") == true }} of ${p.pages.size} pages · Gemini pages: ${p.stats.apiPages}",
             style = MaterialTheme.typography.bodySmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Layout", style = MaterialTheme.typography.titleSmall)
+        Text("Changes below re-make the deck on the phone; no internet needed.", style = MaterialTheme.typography.bodySmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (l in SlideLayout.entries) FilterChip(selected = p.settings.layout == l, enabled = enabled, onClick = { if (p.settings.layout != l) vm.setLayout(l) },
                 label = { Text(if (l == SlideLayout.TOP) "Top" else "Top right") }, modifier = Modifier.heightIn(min = 48.dp))
+            for (t in DeckTheme.entries) FilterChip(selected = p.settings.theme == t, enabled = enabled, onClick = { if (p.settings.theme != t) vm.setTheme(t) },
+                label = { Text(if (t == DeckTheme.LIGHT) "Light" else "Dark") }, modifier = Modifier.heightIn(min = 48.dp))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = p.settings.style != QuestionStyle.PICTURE, enabled = enabled, onClick = { vm.setDeckStyle(QuestionStyle.AUTO) },
+                label = { Text("Editable text") }, modifier = Modifier.heightIn(min = 48.dp))
+            FilterChip(selected = p.settings.style == QuestionStyle.PICTURE, enabled = enabled, onClick = { vm.setDeckStyle(QuestionStyle.PICTURE) },
+                label = { Text("Pictures") }, modifier = Modifier.heightIn(min = 48.dp))
             FilterChip(selected = p.settings.blankAfter, enabled = enabled, onClick = { vm.setBlankAll(!p.settings.blankAfter) },
                 label = { Text("Empty slide after each") }, modifier = Modifier.heightIn(min = 48.dp))
+        }
+        if (p.items.any { it.passageGroup != null }) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Passages:", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+            FilterChip(selected = p.settings.passageMode == PassageMode.REPEAT, enabled = enabled, onClick = { vm.setPassageMode(PassageMode.REPEAT) },
+                label = { Text("With every question") }, modifier = Modifier.heightIn(min = 48.dp))
+            FilterChip(selected = p.settings.passageMode == PassageMode.ONCE, enabled = enabled, onClick = { vm.setPassageMode(PassageMode.ONCE) },
+                label = { Text("Once, on its own slide") }, modifier = Modifier.heightIn(min = 48.dp))
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Template:", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp))
+            for (t in templates) FilterChip(selected = p.settings.template.id == t.id, enabled = enabled, onClick = { vm.setTemplate(t.id) },
+                label = { Text(t.name, maxLines = 1) }, modifier = Modifier.heightIn(min = 48.dp))
+            TextButton(onClick = onTemplates, modifier = Modifier.heightIn(min = 48.dp)) { Text("Design…") }
             TextButton(onClick = onQa, modifier = Modifier.heightIn(min = 48.dp)) { Text("QA report") }
         }
     }
 }
 
 @Composable
-private fun thumb(vm: MainViewModel, p: Project, it: Item, version: Any): ImageBitmap? {
-    val bmp by produceState<ImageBitmap?>(null, p.rev, it.id, version) {
-        value = withContext(Dispatchers.IO) {
-            vm.thumbnail(p, it.id)?.let { f -> decodeSampled(f, 480)?.asImageBitmap() }
-        }
-    }
-    return bmp
-}
-
-private fun decodeSampled(f: File, maxSide: Int): android.graphics.Bitmap? {
-    val o = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(f.path, o)
-    var s = 1; while (maxOf(o.outWidth, o.outHeight) / (s * 2) >= maxSide) s *= 2
-    return BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = s })
+private fun slidePreview(vm: MainViewModel, p: Project, itemId: String, version: Int): Pair<PreviewSlide?, Map<String, androidx.compose.ui.graphics.ImageBitmap>> {
+    val slide by produceState<PreviewSlide?>(null, p.rev, itemId, version) { value = withContext(Dispatchers.IO) { vm.preview(p, itemId) } }
+    val files = (slide?.items?.mapNotNull { it.image }?.map { vm.previewImage(p, it) } ?: emptyList()) +
+        p.settings.template.elements.mapNotNull { it.image }.map { vm.templateImage(it) }
+    return slide to rememberImages(files)
 }
 
 @Composable
-private fun QuestionCard(vm: MainViewModel, p: Project, it: Item, n: Int, onOpen: () -> Unit) {
-    val img = thumb(vm, p, it, p.settings.layout)
+private fun QuestionCard(vm: MainViewModel, p: Project, it: Item, n: Int, version: Int, onOpen: () -> Unit) {
+    val (slide, images) = slidePreview(vm, p, it.id, version)
     Card(Modifier.fillMaxWidth().clickable(onClickLabel = "Preview question ${it.label}", onClick = onOpen)) {
-        Box(Modifier.fillMaxWidth().height(110.dp).background(androidx.compose.ui.graphics.Color.White), contentAlignment = Alignment.TopStart) {
-            if (img != null) Image(img, contentDescription = "Question ${it.label}", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize().padding(4.dp))
-        }
+        SlidePreview(p.settings.template, p.settings.theme, slide = slide, images = images, description = "Slide of question ${it.label}")
         Column(Modifier.padding(8.dp)) {
-            Text("Slide $n · Q ${it.label}", style = MaterialTheme.typography.labelLarge)
+            Text("Q ${it.label}" + if (slide?.isText == true) " · text" else " · picture", style = MaterialTheme.typography.labelLarge)
             val flags = it.flags.filter { f -> f in FLAG_LABELS }
             if (flags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 for (f in flags) Text(FLAG_LABELS[f]!!, style = MaterialTheme.typography.labelSmall,
@@ -181,20 +188,33 @@ private fun QuestionCard(vm: MainViewModel, p: Project, it: Item, n: Int, onOpen
 }
 
 @Composable
-private fun Preview(vm: MainViewModel, p: Project, item: Item, onClose: () -> Unit) {
-    val img = thumb(vm, p, item, p.settings.layout)
+private fun Preview(vm: MainViewModel, p: Project, item: Item, version: Int, onClose: () -> Unit) {
+    val (slide, images) = slidePreview(vm, p, item.id, version)
+    val (passage, pImages) = slidePreview(vm, p, item.id + "_passage", version)
     val idx = p.items.indexOfFirst { it.id == item.id }
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("Question ${item.label}") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                SlideDrawing(p.settings.layout, picture = img, description = "Slide preview of question ${item.label}")
+                if (passage != null) {
+                    Text("Passage slide", style = MaterialTheme.typography.labelMedium)
+                    SlidePreview(p.settings.template, p.settings.theme, slide = passage, images = pImages, description = "Passage slide")
+                    Spacer(Modifier.height(8.dp))
+                }
+                SlidePreview(p.settings.template, p.settings.theme, slide = slide, images = images, description = "Slide preview of question ${item.label}")
                 val flags = item.flags.mapNotNull { QaReport.FLAG_TEXT[it] }
                 if (flags.isNotEmpty()) Text("Note: " + flags.joinToString(", "), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
                 item.displayPt?.let { Text("Text size on the slide: about ${it.toInt()} pt", style = MaterialTheme.typography.bodySmall) }
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (p.settings.style != QuestionStyle.PICTURE || item.style != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val isText = slide?.isText == true
+                    OutlinedButton(onClick = { vm.setItemStyle(item.id, if (isText) QuestionStyle.PICTURE else QuestionStyle.TEXT); onClose() }) {
+                        Text(if (isText) "Show as picture" else "Try as text")
+                    }
+                    if (item.style != null) TextButton(onClick = { vm.setItemStyle(item.id, null); onClose() }) { Text("Automatic") }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { vm.move(item.id, -1); onClose() }, enabled = idx > 0) { Text("Move up") }
                     OutlinedButton(onClick = { vm.move(item.id, +1); onClose() }, enabled = idx < p.items.size - 1) { Text("Move down") }
                 }

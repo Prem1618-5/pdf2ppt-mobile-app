@@ -11,7 +11,11 @@ import app.papertoslides.core.gemini.KeyCheck
 import app.papertoslides.core.geometry.SlideLayout
 import app.papertoslides.core.keypool.KeyLanes
 import app.papertoslides.core.project.Project
+import app.papertoslides.core.project.PassageMode
 import app.papertoslides.core.project.ProjectSettings
+import app.papertoslides.core.project.QuestionStyle
+import app.papertoslides.core.template.DeckTheme
+import app.papertoslides.core.template.SlideTemplate
 import app.papertoslides.data.AppSettings
 import app.papertoslides.data.ProjectStore
 import app.papertoslides.data.ProjectSummary
@@ -56,6 +60,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val keys: StateFlow<List<KeyRow>> = _keys
     private val _keyMessage = MutableStateFlow<String?>(null)
     val keyMessage: StateFlow<String?> = _keyMessage
+    private val _templates = MutableStateFlow<List<app.papertoslides.core.template.SlideTemplate>>(emptyList())
+    val templates: StateFlow<List<app.papertoslides.core.template.SlideTemplate>> = _templates
     private val _review = MutableStateFlow(ReviewState())
     val review: StateFlow<ReviewState> = _review
     private val editLock = Mutex()
@@ -65,6 +71,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() = viewModelScope.launch(Dispatchers.IO) {
         _projects.value = s.projects.list()
         _settings.value = s.settings.get()
+        _templates.value = s.templates.list()
         refreshKeys()
     }
 
@@ -109,11 +116,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _draft.value = null
     }
 
-    fun start(d: Draft, layout: SlideLayout, blankAfter: Boolean, watermark: Boolean, lang: String, allowOverCap: Boolean) {
-        val st = s.settings.update { it.copy(layout = layout, blankAfter = blankAfter, removeWatermark = watermark, lang = lang) }
+    fun start(d: Draft, layout: SlideLayout, blankAfter: Boolean, watermark: Boolean, lang: String, allowOverCap: Boolean,
+              theme: DeckTheme, style: QuestionStyle, templateId: String) {
+        val st = s.settings.update { it.copy(layout = layout, blankAfter = blankAfter, removeWatermark = watermark, lang = lang, theme = theme, style = style, templateId = templateId) }
         _settings.value = st
-        PaperWorker.start(ctx, JobSpec(d.projectId, d.name, ProjectSettings(layout, blankAfter, watermark, lang, st.dpi), allowOverCap))
+        PaperWorker.start(ctx, JobSpec(d.projectId, d.name, ProjectSettings(layout, blankAfter, watermark, lang, st.dpi, theme, style,
+            s.templates.get(templateId), st.passageMode, st.expandLong, minPt = st.minPt.toDouble()), allowOverCap))
         _draft.value = null
+    }
+
+    // ------------------------------------------------------------------ templates
+    fun template(id: String) = s.templates.get(id)
+    fun templateImage(name: String) = s.templates.imageFile(name)
+
+    fun saveTemplate(t: SlideTemplate, useForNew: Boolean) = viewModelScope.launch(Dispatchers.IO) {
+        val saved = s.templates.save(t)
+        if (useForNew) _settings.value = s.settings.update { it.copy(templateId = saved.id) }
+        _templates.value = s.templates.list()
+    }
+
+    fun deleteTemplate(id: String) = viewModelScope.launch(Dispatchers.IO) {
+        s.templates.delete(id)
+        if (s.settings.get().templateId == id) _settings.value = s.settings.update { it.copy(templateId = SlideTemplate.PLAIN.id) }
+        _templates.value = s.templates.list()
+    }
+
+    /** A logo picked from the gallery: downscaled to <= 1000 px and stored as PNG with the templates. */
+    fun importLogo(uri: Uri, templateId: String, onDone: (String) -> Unit) = viewModelScope.launch(Dispatchers.IO) {
+        val name = "${templateId}_logo_${System.currentTimeMillis()}.png"
+        val ok = runCatching {
+            val bytes = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+            var b = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: error("not an image")
+            b = app.papertoslides.platform.Bitmaps.fit(b, 1000)
+            s.templates.imageFile(name).writeBytes(app.papertoslides.platform.Bitmaps.png(b))
+        }.isSuccess
+        withContext(Dispatchers.Main) { if (ok) onDone(name) }
     }
 
     fun cancelJob() = PaperWorker.cancel(ctx)
@@ -147,6 +184,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setLayout(l: SlideLayout) = edit("Switching layout…") { p -> p.copy(settings = p.settings.copy(layout = l)) }
+    fun setTheme(t: DeckTheme) = edit("Switching theme…") { p -> p.copy(settings = p.settings.copy(theme = t)) }
+    fun setDeckStyle(st: QuestionStyle) = edit("Updating…") { p -> p.copy(settings = p.settings.copy(style = st), items = p.items.map { it.copy(style = null) }) }
+    fun setItemStyle(id: String, st: QuestionStyle?) = edit("Updating…") { p -> p.copy(items = p.items.map { if (it.id == id) it.copy(style = st) else it }) }
+    fun setTemplate(id: String) = edit("Applying template…") { p -> p.copy(settings = p.settings.copy(template = s.templates.get(id))) }
+    fun setPassageMode(m: PassageMode) = edit("Updating…") { p -> p.copy(settings = p.settings.copy(passageMode = m)) }
+    fun preview(p: Project, itemId: String) = s.exporter.preview(p, itemId)
+    fun previewImage(p: Project, name: String) = s.exporter.previewImage(p, name)
     fun setBlankAll(on: Boolean) = edit("Updating…") { p -> p.copy(settings = p.settings.copy(blankAfter = on)) }
     fun deleteItem(id: String) = edit("Updating…") { p -> p.copy(items = p.items.filter { it.id != id }) }
     fun toggleBlank(id: String) = edit("Updating…") { p -> p.copy(items = p.items.map { if (it.id == id) it.copy(blankAfter = !p.blankAfter(it)) else it }) }

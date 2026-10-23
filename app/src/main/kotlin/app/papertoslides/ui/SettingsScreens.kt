@@ -118,11 +118,29 @@ fun KeysScreen(vm: MainViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onSelfTest: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit, onSelfTest: () -> Unit, onTemplates: () -> Unit) {
     val st by vm.settings.collectAsState()
     var models by remember(st.models) { mutableStateOf(st.models) }
     Scaffold(topBar = { BackBar("Settings", onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onTemplates, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("Slide templates (institute name, strips, logo)") }
+            HorizontalDivider()
+            Text("Comprehension passages", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.FilterChip(selected = st.passageMode == app.papertoslides.core.project.PassageMode.REPEAT, onClick = { vm.updateSettings { it.copy(passageMode = app.papertoslides.core.project.PassageMode.REPEAT) } },
+                    label = { Text("With every question") }, modifier = Modifier.heightIn(min = 48.dp))
+                androidx.compose.material3.FilterChip(selected = st.passageMode == app.papertoslides.core.project.PassageMode.ONCE, onClick = { vm.updateSettings { it.copy(passageMode = app.papertoslides.core.project.PassageMode.ONCE) } },
+                    label = { Text("Once, own slide") }, modifier = Modifier.heightIn(min = 48.dp))
+            }
+            Text("With every question: the passage and the question share the slide (it may use the full height). If it does not fit, the passage goes on its own slide automatically.", style = MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Long questions may use the full height", Modifier.weight(1f))
+                androidx.compose.material3.Switch(st.expandLong, { v -> vm.updateSettings { it.copy(expandLong = v) } })
+            }
+            Text("Smallest text on a slide: ${st.minPt} pt", style = MaterialTheme.typography.titleSmall)
+            Slider(st.minPt.toFloat(), { v -> vm.updateSettings { it.copy(minPt = v.toInt().coerceIn(12, 24)) } }, valueRange = 12f..24f, steps = 11)
+            Text("Questions that would need smaller text are shown as a picture instead.", style = MaterialTheme.typography.bodySmall)
+            HorizontalDivider()
             Text("Pages per Gemini request: ${st.slicePages}", style = MaterialTheme.typography.titleSmall)
             Slider(st.slicePages.toFloat(), { v -> vm.updateSettings { it.copy(slicePages = v.toInt().coerceIn(1, 4)) } }, valueRange = 1f..4f, steps = 2)
             Text("More pages per request saves daily quota; fewer pages is a little more accurate.", style = MaterialTheme.typography.bodySmall)

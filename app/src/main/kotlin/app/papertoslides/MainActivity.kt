@@ -23,6 +23,8 @@ import app.papertoslides.ui.ProgressScreen
 import app.papertoslides.ui.ReviewScreen
 import app.papertoslides.ui.SelfTestScreen
 import app.papertoslides.ui.SettingsScreen
+import app.papertoslides.ui.TemplateEditorScreen
+import app.papertoslides.ui.TemplatesScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,14 +44,19 @@ class MainActivity : ComponentActivity() {
                 NavHost(nav, startDestination = "home") {
                     composable("home") {
                         HomeScreen(vm, onProgress = { nav.navigate("progress") }, onReview = { nav.navigate("review/$it") },
-                            onKeys = { nav.navigate("keys") }, onSettings = { nav.navigate("settings") })
+                            onKeys = { nav.navigate("keys") }, onSettings = { nav.navigate("settings") }, onTemplates = { nav.navigate("templates") })
                     }
                     composable("progress") {
                         ProgressScreen(vm, onDone = { id -> nav.navigate("review/$id") { popUpTo("home") } }, onHome = ::home)
                     }
-                    composable("review/{id}") { e -> ReviewScreen(vm, e.arguments?.getString("id") ?: "", onBack = ::home) }
+                    composable("review/{id}") { e -> ReviewScreen(vm, e.arguments?.getString("id") ?: "", onBack = ::home, onTemplates = { nav.navigate("templates") }) }
+                    composable("templates") { TemplatesScreen(vm, onBack = { nav.popBackStack() }, onEdit = { nav.navigate("template/${it ?: "new"}") }) }
+                    composable("template/{id}") { e ->
+                        val id = e.arguments?.getString("id")?.takeIf { it != "new" }
+                        TemplateEditorScreen(vm, id, onDone = { vm.refresh(); nav.popBackStack() })
+                    }
                     composable("keys") { KeysScreen(vm, onBack = { vm.refresh(); nav.popBackStack() }) }
-                    composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }, onSelfTest = { nav.navigate("selftest") }) }
+                    composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }, onSelfTest = { nav.navigate("selftest") }, onTemplates = { nav.navigate("templates") }) }
                     composable("selftest") { SelfTestScreen(vm, onBack = { nav.popBackStack() }) }
                 }
             }

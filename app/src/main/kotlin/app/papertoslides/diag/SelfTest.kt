@@ -7,6 +7,8 @@ import app.papertoslides.Services
 import app.papertoslides.core.geometry.SlideLayout
 import app.papertoslides.core.model.Tier
 import app.papertoslides.core.project.ProjectSettings
+import app.papertoslides.core.template.DeckTheme
+import app.papertoslides.core.template.SlideTemplate
 import app.papertoslides.job.JobRunner
 import app.papertoslides.job.JobSpec
 import app.papertoslides.platform.SourceException
@@ -84,6 +86,33 @@ class SelfTest(private val ctx: Context, private val s: Services) {
                 check(p.integrity?.ok == true || flagged) { "unflagged result with failed integrity" }
                 "text layer rejected, ${p.items.size} questions via ${p.pages.mapNotNull { it.tier }.distinct().joinToString()}"
             }; emit(true)
+            val institute = SlideTemplate.quickSetup("selftest_t", "Self-test", "SELF-TEST INSTITUTE", "www.example.test", rightMarginIn = 1.2)
+            cases += job("edge_cases.pdf", "T1 editable text, dark, institute template", settings = ProjectSettings(layout = SlideLayout.TOP_RIGHT,
+                theme = DeckTheme.DARK, template = institute)) { p ->
+                check(p.items.map { it.number } == (1..15).toList()) { "numbers ${p.items.map { it.number }}" }
+                val asText = p.items.count { "as_picture" !in it.flags }
+                check(asText >= 13) { "only $asText of 15 as editable text: ${p.items.filter { "as_picture" in it.flags }.map { it.label }}" }
+                ZipFile(s.projects.deckFile(p)).use { z ->
+                    val layout = z.getInputStream(z.getEntry("ppt/slideLayouts/slideLayout7.xml")).readBytes().decodeToString()
+                    check("SELF-TEST INSTITUTE" in layout) { "template strip missing on the slide layout" }
+                    check("16181D" in layout) { "dark background missing" }
+                    val groups = z.entries().toList().filter { it.name.matches(Regex("ppt/slides/slide\\d+\\.xml")) }
+                        .count { e -> "<p:grpSp>" in z.getInputStream(e).readBytes().decodeToString() }
+                    check(groups == asText) { "$groups text containers, expected $asText" }
+                }
+                "$asText of 15 as editable text, template + dark theme on the layout"
+            }; emit(true)
+            cases += job("edge_cases.pdf", "T2 passage with 5 questions, options, figures", settings = ProjectSettings(layout = SlideLayout.TOP_RIGHT)) { p ->
+                val group = p.items.filter { it.passageGroup != null }
+                check(group.map { it.number } == (6..10).toList()) { "passage group ${group.map { it.number }}" }
+                check(group.all { "expanded" in it.flags || "passage_separate" in it.flags }) { "passage questions not given the full height: ${group.map { it.flags }}" }
+                check(p.items.first { it.number == 3 }.flags.none { it == "no_number" }) { "statements broke Q3" }
+                "passage on Q6-10, statements kept inside Q3"
+            }; emit(true)
+            cases += job("hindi_bilingual.pdf", "T3 garbled Hindi text layer -> pictures", settings = ProjectSettings(lang = "both")) { p ->
+                check(p.items.isNotEmpty() && p.items.all { "as_picture" in it.flags }) { "Hindi shown as text: ${p.items.map { it.flags }}" }
+                "${p.items.size} bilingual questions kept as exact pictures"
+            }; emit(true)
             cases += job("password.pdf", "A6 password PDF", expectFailure = true) { "should have been refused" }; emit(true)
             cases += job("corrupt.pdf", "A6 damaged PDF", expectFailure = true) { p -> "read anyway: ${p.items.size} items, no crash" }; emit(true)
         } finally {
@@ -119,15 +148,16 @@ class SelfTest(private val ctx: Context, private val s: Services) {
 
     private suspend fun job(
         asset: String, name: String, layout: SlideLayout = SlideLayout.TOP, expectFailure: Boolean = false,
+        settings: ProjectSettings = ProjectSettings(layout = layout),
         verify: (app.papertoslides.core.project.Project) -> String,
     ): CaseResult {
         val t = System.currentTimeMillis()
-        val id = "selftest_" + asset.substringBefore('.') + "_" + layout.name.lowercase()
+        val id = "selftest_" + asset.substringBefore('.') + "_" + layout.name.lowercase() + "_" + (name.hashCode() and 0xffff)
         s.projects.delete(id)
         return try {
             val src = File(s.projects.srcDir(id), "00_$asset")
             ctx.assets.open("fixtures/$asset").use { i -> src.outputStream().use { i.copyTo(it) } }
-            val out = JobRunner(ctx, s) { }.run(JobSpec(id, asset.substringBefore('.'), ProjectSettings(layout = layout), noGemini = true), null)
+            val out = JobRunner(ctx, s) { }.run(JobSpec(id, asset.substringBefore('.'), settings, noGemini = true), null)
             val detail = verify(out.project)
             if (asset == "password.pdf") CaseResult(name, false, "password PDF was not refused", System.currentTimeMillis() - t)
             else CaseResult(name, true, detail, System.currentTimeMillis() - t)

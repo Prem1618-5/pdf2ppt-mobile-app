@@ -4,6 +4,7 @@ import android.content.Context
 import app.papertoslides.core.gemini.HttpTransport
 import app.papertoslides.data.ProjectStore
 import app.papertoslides.data.SettingsStore
+import app.papertoslides.data.TemplateStore
 import app.papertoslides.job.Exporter
 import app.papertoslides.platform.OkHttpTransport
 import app.papertoslides.platform.Sources
@@ -16,7 +17,8 @@ class Services private constructor(ctx: Context) {
     val keys = KeyStoreRepo(File(ctx.filesDir, "vault"))
     val projects = ProjectStore(File(ctx.filesDir, "projects"))
     val http: HttpTransport = OkHttpTransport()
-    val exporter = Exporter(ctx, projects)
+    val templates = TemplateStore(File(ctx.filesDir, "templates"))
+    val exporter = Exporter(ctx, projects, templates)
 
     companion object {
         @Volatile private var instance: Services? = null

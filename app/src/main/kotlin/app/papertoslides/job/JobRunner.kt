@@ -18,6 +18,7 @@ import app.papertoslides.core.ladder.PageInfo
 import app.papertoslides.core.model.PageKind
 import app.papertoslides.core.model.PageLayout
 import app.papertoslides.core.model.TextLine
+import app.papertoslides.core.model.Tier
 import app.papertoslides.core.project.JobStats
 import app.papertoslides.core.project.Project
 import app.papertoslides.core.project.ProjectPage
@@ -122,6 +123,13 @@ class JobRunner(private val ctx: Context, private val s: Services, private val r
                 )
                 report { copy(stage = "Finding questions", done = 0, total = pages.size, stageStartedAt = System.currentTimeMillis()) }
                 val res = LayoutLadder(infos, tiers, spec.settings.lang, LadderListener { _, _ -> }).run()
+
+                // ---- page text lines for editable-text slides (text layer, else OCR) ------------------
+                for ((i, info) in infos.withIndex()) {
+                    val lines = if (res.tiers.getOrNull(i) == Tier.T0_TEXT) info.textLines
+                    else runCatching { json.decodeFromString<List<TextLine>>(File(work, "ocr_%04d.json".format(i)).readText()) }.getOrNull()
+                    if (lines != null) File(work, "lines_%04d.json".format(i)).writeText(json.encodeToString(lines))
+                }
 
                 // ---- project -----------------------------------------------------------------------
                 val tierCounts = res.tiers.filterNotNull().groupingBy { it.name }.eachCount()
