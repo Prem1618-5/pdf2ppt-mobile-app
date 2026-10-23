@@ -9,6 +9,8 @@ import app.papertoslides.core.model.Box
 import app.papertoslides.core.model.PageKind
 import app.papertoslides.core.model.Roles
 import app.papertoslides.core.model.Tier
+import app.papertoslides.core.template.DeckTheme
+import app.papertoslides.core.template.SlideTemplate
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -21,6 +23,17 @@ data class ProjectSettings(
     val lang: String = "en",
     /** Pixels per displayed inch of the question pictures. */
     val dpi: Int = 250,
+    /** Light or dark slides. */
+    val theme: DeckTheme = DeckTheme.LIGHT,
+    /** Editable text when it can be trusted (AUTO), always text, or always a picture of the paper. */
+    val style: QuestionStyle = QuestionStyle.AUTO,
+    /** The teacher's slide design (copied into the project so later template edits never change this deck). */
+    val template: SlideTemplate = SlideTemplate.PLAIN,
+    val passageMode: PassageMode = PassageMode.REPEAT,
+    /** Long questions may use the full height (quadrants I + IV) instead of being shrunk below [minPt]. */
+    val expandLong: Boolean = true,
+    val maxPt: Double = 28.0,
+    val minPt: Double = 16.0,
 )
 
 @Serializable
@@ -40,6 +53,14 @@ data class ProjectPage(
 @Serializable
 data class Part(val page: Int, val box: Box, val erase: List<Box> = emptyList())
 
+/** How a question is put on its slide. AUTO = editable text when the text can be trusted, else a picture. */
+@Serializable
+enum class QuestionStyle { AUTO, TEXT, PICTURE }
+
+/** Comprehension passages: repeat the passage on every dependent question slide, or show it once before them. */
+@Serializable
+enum class PassageMode { REPEAT, ONCE }
+
 @Serializable
 data class Item(
     val id: String,
@@ -49,7 +70,22 @@ data class Item(
     val lang: String = "en",
     val flags: List<String> = emptyList(),
     val parts: List<Part>,
+    /** The other-language copy of this question (language "both"), shown after it. */
+    val twinParts: List<Part> = emptyList(),
+    /** Shared passage (comprehension / data set) this question depends on, on its pages. */
+    val passageParts: List<Part> = emptyList(),
+    /** Questions sharing one passage have the same group number; the first one has [passageHead]. */
+    val passageGroup: Int? = null,
+    val passageHead: Boolean = false,
     val stem: String = "",
+    /** Options as Gemini transcribed them (other sources rebuild text from the page lines). */
+    val options: List<String> = emptyList(),
+    /** Passage text as Gemini transcribed it. */
+    val passageText: String = "",
+    /** Where text for the editable-text style comes from: pdf | ocr | gemini | none. */
+    val textFrom: String = "none",
+    /** Per-slide override of the deck's question style. */
+    val style: QuestionStyle? = null,
     val confidence: Double = 1.0,
     /** Per-slide override of the global blank-after setting (null = use the global one). */
     val blankAfter: Boolean? = null,
@@ -97,19 +133,26 @@ data class Project(
             result.layouts.forEachIndexed { i, lay ->
                 boxesByPage[i] = lay?.fragments?.mapNotNull { Box.fromThousands(it.box) } ?: emptyList()
             }
-            return result.assembly.questions.mapIndexed { i, q ->
-                val frags = (listOfNotNull(q.passage) + q.root + q.parts + (if (settings.lang == "both") q.twins else emptyList()))
-                    .filter { it.role != Roles.CLUTTER }
-                val parts = frags.map { f ->
-                    Part(f.pageSeq, Imaging.paddedBox(f.box, boxesByPage[f.pageSeq] ?: emptyList()), f.erase)
-                }
-                val flags = q.flags.toMutableList()
+            val qs = result.assembly.questions
+            val heads = qs.filter { it.passageParts.isNotEmpty() }
+            return qs.mapIndexed { i, q ->
+                val frags = (listOf(q.root) + q.parts).filter { it.role != Roles.CLUTTER }
+                fun part(f: app.papertoslides.core.model.Fragment) = Part(f.pageSeq, Imaging.paddedBox(f.box, boxesByPage[f.pageSeq] ?: emptyList()), f.erase)
+                val parts = frags.map { part(it) }
+                val head = if (q.passageParts.isNotEmpty()) q else q.passageOf
+                val passage = head?.passageParts ?: emptyList()
                 val tier = result.tiers.getOrNull(q.root.pageSeq)
+                val flags = q.flags.toMutableList()
                 if (tier == Tier.T3_HEURISTIC && "low_confidence" !in flags) flags += "low_confidence"
                 if (q.passageSlideOf != null && "refers_to_passage" !in flags) flags += "refers_to_passage"
                 Item(
                     id = "q${i + 1}", label = q.label, number = q.number, section = q.section, lang = q.lang,
                     flags = flags, parts = parts, stem = q.text.take(1500), confidence = q.confidence,
+                    passageParts = passage.map { part(it) },
+                    twinParts = if (settings.lang == "both") q.twins.filter { it.role != Roles.CLUTTER }.map { part(it) } else emptyList(), passageGroup = head?.let { heads.indexOf(it) }?.takeIf { it >= 0 },
+                    passageHead = head === q, options = (listOf(q.root) + q.parts).flatMap { it.options },
+                    passageText = passage.joinToString("\n") { it.text },
+                    textFrom = when (tier) { Tier.T0_TEXT -> "pdf"; Tier.T1_OCR -> "ocr"; Tier.T2_GEMINI -> "gemini"; else -> "none" },
                     passageSlideOf = q.passageSlideOf, hasFigure = frags.any { it.hasFigure },
                 )
             }

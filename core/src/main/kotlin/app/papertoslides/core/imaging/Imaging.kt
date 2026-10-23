@@ -321,6 +321,44 @@ object Imaging {
         return heights[heights.size / 2] * f / pxPerIn * 72.0
     }
 
+    /**
+     * Dark theme: black-on-white line art becomes [fg]-on-[bg] (paper -> background, ink -> text colour).
+     * Colourful pictures (photos, coloured diagrams) are kept as they are, on their own white card.
+     */
+    fun toTheme(img: Raster, bgHex: String, fgHex: String): Raster {
+        if (colourfulness(img) >= 6) return img
+        val bg = hex(bgHex); val fg = hex(fgHex)
+        val out = Raster(img.w, img.h)
+        for (i in img.px.indices) {
+            val t = (((img.px[i] shr 16) and 255) * 299 + ((img.px[i] shr 8) and 255) * 587 + (img.px[i] and 255) * 114) / 1000 / 255.0
+            out.px[i] = Raster.rgb(
+                (fg[0] + (bg[0] - fg[0]) * t).roundToInt(), (fg[1] + (bg[1] - fg[1]) * t).roundToInt(), (fg[2] + (bg[2] - fg[2]) * t).roundToInt(),
+            )
+        }
+        return out
+    }
+
+    private fun hex(h: String): IntArray {
+        val v = h.removePrefix("#").toLong(16).toInt()
+        return intArrayOf((v shr 16) and 255, (v shr 8) and 255, v and 255)
+    }
+
+    /** Cut a tall picture into [n] pieces at blank rows near the even split points (long passages). */
+    fun splitAtBlank(img: Raster, n: Int): List<Raster> {
+        if (n <= 1) return listOf(img)
+        val c = contentMask(img)
+        val blank = BooleanArray(img.h) { !c.rowHas(it) }
+        val cuts = mutableListOf(0)
+        for (k in 1 until n) {
+            val target = img.h * k / n
+            val win = img.h / (2 * n)
+            val y = (0..win).asSequence().flatMap { d -> sequenceOf(target - d, target + d) }.firstOrNull { it in 1 until img.h && blank[it] } ?: target
+            if (y > cuts.last() + 10) cuts += y
+        }
+        cuts += img.h
+        return cuts.zipWithNext().map { (a, b) -> tighten(img.crop(0, a, img.w, b)).first }
+    }
+
     /** Unsharp mask (photos / scans) so characters stay crisp on a projector. */
     fun sharpen(img: Raster, amount: Double = 1.0): Raster {
         val g = img.gray()

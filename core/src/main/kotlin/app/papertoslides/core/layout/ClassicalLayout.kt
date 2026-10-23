@@ -162,15 +162,29 @@ class ClassicalLayout(private val ocr: Boolean = false) {
                     continue
                 }
                 val exp = expectedNext
+                // a restart to 1 or a jump must sit exactly at the number margin: numbered statements inside a
+                // question ("1. The Sun is a star.") are indented and are not new questions
+                val strict = exp != null && n != exp
+                if (strict && l.x0 > left + (if (ocr) 0.022 else 0.016)) continue
                 if (exp == null || n == exp || n - exp in 1..3 || n == 1) {
                     anchors += l to n
                     expectedNext = n + 1
+                } else if (n == exp - 1 && anchors.isNotEmpty() && anchors.last().second == n &&
+                    DEVANAGARI.containsMatchIn(l.text) != DEVANAGARI.containsMatchIn(anchors.last().first.text)) {
+                    anchors += l to n // bilingual twin: the same number printed again in the other script
                 }
             }
             val starts = anchors.map { it.first.y0 }
             val bounds = starts + 1.01
             val topLines = colLines.filter { starts.isEmpty() || it.y1 <= starts[0] + 0.002 }
-            if (topLines.isNotEmpty() && (frags.isNotEmpty() || hadQuestion)) {
+            val topPassage = topLines.indexOfFirst { DIRECTIONS.containsMatchIn(it.text) }
+            if (topPassage >= 0) {
+                val before = topLines.subList(0, topPassage)
+                if (before.isNotEmpty() && (frags.isNotEmpty() || hadQuestion)) {
+                    frags += frag(Roles.CONTINUATION, null, cx0, before.minOf { it.y0 }, cx1, before.maxOf { it.y1 }, before, colFigs, cont = true)
+                }
+                frags += passage(topLines.subList(topPassage, topLines.size), cx0, cx1, colFigs)
+            } else if (topLines.isNotEmpty() && (frags.isNotEmpty() || hadQuestion)) {
                 val y0 = topLines.minOf { it.y0 }
                 val y1 = topLines.maxOf { it.y1 }
                 val t = topLines[0]
@@ -186,6 +200,10 @@ class ClassicalLayout(private val ocr: Boolean = false) {
                 // stop at an interleaved solution block
                 val cut = body.indices.firstOrNull { it > 0 && SOLUTION.containsMatchIn(body[it].text) }
                 if (cut != null) body = body.subList(0, cut)
+                // a "Directions ... read the passage" block after this question belongs to the next questions
+                val pcut = body.indices.firstOrNull { it > 0 && DIRECTIONS.containsMatchIn(body[it].text) }
+                var passageLines: List<TextLine> = emptyList()
+                if (pcut != null) { passageLines = body.subList(pcut, body.size); body = body.subList(0, pcut) }
                 var y1 = body.maxOf { it.y1 }
                 for (f in colFigs) if (f.y0 >= ys && f.y0 < ye) y1 = max(y1, f.y1)
                 var fr = frag(Roles.QUESTION, n.toString(), cx0, l.y0, cx1, y1, body, colFigs, number = n)
@@ -194,6 +212,7 @@ class ClassicalLayout(private val ocr: Boolean = false) {
                     fr = fr.copy(erase = listOf(listOf(qx0 - 0.004, l.y0 - 0.01, qx1 + 0.004, y1 + 0.01)))
                 }
                 frags += fr
+                if (passageLines.isNotEmpty()) frags += passage(passageLines, cx0, cx1, colFigs)
             }
         }
         hadQuestion = hadQuestion || frags.any { it.role == Roles.QUESTION }
@@ -214,6 +233,14 @@ class ClassicalLayout(private val ocr: Boolean = false) {
             fragments = ordered,
             model = modelName,
         )
+    }
+
+    /** A shared passage (comprehension / data set); label = the question range it serves ("6-10"), if printed. */
+    private fun passage(lines: List<TextLine>, cx0: Double, cx1: Double, figs: List<Box>): RawFragment {
+        val head = lines.first().text
+        val range = RANGE.find(head)?.let { m -> "${m.groupValues[1]}-${m.groupValues[2]}" }
+        val f = frag(Roles.SHARED_PASSAGE, range, cx0, lines.minOf { it.y0 }, cx1, lines.maxOf { it.y1 }, lines, figs)
+        return f.copy(continuesOnNext = true)
     }
 
     private fun frag(
@@ -250,6 +277,9 @@ class ClassicalLayout(private val ocr: Boolean = false) {
         private val KEY_TOKEN = Regex("""^\d{1,3}\s*[.\-:)]?\s*\(?[A-Da-d1-4]\)?$""")
         val PAGE_NO = Regex("""^\s*[-\[(]?\s*\d+\s*[-\])]?\s*$""")
         val INSTRUCTION_WORDS = Regex("""\b(tick|marks?|negative|candidates?|answer sheet|booklet|carry|instructions?|duration|allowed)\b""", RegexOption.IGNORE_CASE)
+        /** Directions / comprehension headers that start a passage shared by the following questions. */
+        val DIRECTIONS = Regex("""^\s*(directions?\b|read the (following |given )?(passage|paragraph|text|poem|extract|information|data)|passage\s*[-–:(\d]|comprehension\b|(study|consider|read) the following (information|data|table|graph|chart|passage)|निर्देश|गद्यांश)""", RegexOption.IGNORE_CASE)
+        val RANGE = Regex("""(\d{1,3})\s*(?:-|–|—|to|and|से)\s*(\d{1,3})""")
         val SOLUTION = Regex("""^\s*(ans(wer)?\s*[.:]|sol(ution)?\s*[.:]|explanation\s*[.:]|hint\s*[.:])""", RegexOption.IGNORE_CASE)
         private val DEVANAGARI = Regex("[ऀ-ॿ]")
         private val LATIN3 = Regex("[A-Za-z]{3}")

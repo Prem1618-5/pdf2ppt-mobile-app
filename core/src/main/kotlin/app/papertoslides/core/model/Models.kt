@@ -3,6 +3,10 @@ package app.papertoslides.core.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** A piece of a line with one vertical position: 0 normal, 1 superscript, -1 subscript. */
+@Serializable
+data class TextRun(val text: String, val rise: Int = 0)
+
 /** One text line on a page; coordinates are fractions (0..1) of the page, `size` is the font size or line height. */
 @Serializable
 data class TextLine(
@@ -12,7 +16,13 @@ data class TextLine(
     val y1: Double,
     val text: String,
     val size: Double = 0.0,
-)
+    /** Formatting runs (super/subscripts); empty = one plain run equal to [text]. */
+    val runs: List<TextRun> = emptyList(),
+    /** Recognition confidence (OCR); 1 for a PDF text layer. */
+    val conf: Double = 1.0,
+) {
+    fun runsOrPlain(): List<TextRun> = runs.ifEmpty { listOf(TextRun(text)) }
+}
 
 /** Rectangle as page fractions (x0, y0, x1, y1). */
 @Serializable
@@ -116,7 +126,9 @@ data class Fragment(
 /** A question built from fragments (port of assemble.Question). */
 class Question(val root: Fragment) {
     val parts = mutableListOf<Fragment>()
-    var passage: Fragment? = null
+    /** The shared passage (with its continuation parts) when this question is the first of its group. */
+    val passageParts = mutableListOf<Fragment>()
+    val passage get() = passageParts.firstOrNull()
     var passageOf: Question? = null
     var passageSlideOf: Int? = null
     val twins = mutableListOf<Fragment>()
@@ -127,7 +139,7 @@ class Question(val root: Fragment) {
     val number get() = root.number
     val label get() = root.label ?: root.number?.toString() ?: "?"
     val lang get() = root.lang
-    val fragments get() = listOfNotNull(passage) + root + parts + twins
+    val fragments get() = passageParts + root + parts + twins
     val confidence get() = (listOf(root) + parts).minOf { it.confidence }
     val text get() = (listOf(root) + parts).map { it.text }.filter { it.isNotEmpty() }.joinToString(" ").trim()
     val pages get() = fragments.map { it.pageSeq }.distinct()

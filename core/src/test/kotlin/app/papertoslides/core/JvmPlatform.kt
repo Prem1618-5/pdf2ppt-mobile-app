@@ -44,7 +44,7 @@ class JvmPdf(val file: File) : AutoCloseable {
                     val asc = (d?.ascent?.takeIf { it > 0 } ?: 900f) / 1000.0
                     val desc = (-(d?.descent ?: -200f)).coerceAtLeast(0f) / 1000.0
                     val base = t.yDirAdj.toDouble()
-                    out += Glyph(t.xDirAdj.toDouble(), (t.xDirAdj + t.widthDirAdj).toDouble(), base - asc * size, base + desc * size, base, size, t.unicode ?: "")
+                    out += Glyph(t.xDirAdj.toDouble(), (t.xDirAdj + t.widthDirAdj).toDouble(), base - asc * size, base + desc * size, base, size, t.unicode?.takeIf { it.isNotEmpty() } ?: "\uFFFD")
                 }
             }
         }

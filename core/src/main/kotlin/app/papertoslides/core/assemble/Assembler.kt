@@ -61,16 +61,24 @@ object Assembler {
         val frags = fragsIn.sortedWith(compareBy({ it.pageSeq }, { it.order }))
         val questions = mutableListOf<Question>()
         val dropped = Dropped()
-        var pendingPassage: Fragment? = null
+        var pendingPassage: MutableList<Fragment>? = null
         var passageGroupOpen = false
+        var passageEnd: Int? = null      // last question number the open passage serves, if printed
+        var groupHead: Question? = null
 
         for (f in frags) {
             when (f.role) {
                 Roles.SOLUTION, Roles.ANSWER_KEY -> { dropped.solutions++; continue }
                 Roles.CLUTTER -> { dropped.clutter++; continue }
-                Roles.INSTRUCTIONS, Roles.SECTION_HEADER -> { passageGroupOpen = false; pendingPassage = null; continue }
-                Roles.SHARED_PASSAGE -> { pendingPassage = f; passageGroupOpen = true; continue }
+                Roles.INSTRUCTIONS, Roles.SECTION_HEADER -> { passageGroupOpen = false; pendingPassage = null; groupHead = null; continue }
+                Roles.SHARED_PASSAGE -> {
+                    pendingPassage = mutableListOf(f); passageGroupOpen = true; groupHead = null
+                    passageEnd = f.label?.substringAfter('-', "")?.toIntOrNull()
+                    continue
+                }
             }
+            // a passage running over a column / page break: its continuation belongs to the passage
+            if (f.role == Roles.CONTINUATION && pendingPassage != null) { pendingPassage.add(f); continue }
             // an unnumbered "question" right after a question is its option block / table tail
             val isCont = f.role == Roles.CONTINUATION ||
                 (f.role == Roles.QUESTION && f.number == null && questions.isNotEmpty() && !f.model.startsWith("classical"))
@@ -88,12 +96,15 @@ object Assembler {
             }
             if (f.role != Roles.QUESTION) continue
             val q = Question(f)
+            val end = passageEnd
+            if (passageGroupOpen && end != null && f.number != null && f.number > end) { passageGroupOpen = false; pendingPassage = null; groupHead = null }
             if (pendingPassage != null) {
-                q.passage = pendingPassage
+                q.passageParts += pendingPassage
                 q.flag("shared_passage")
                 pendingPassage = null
+                groupHead = q
             } else if (passageGroupOpen) {
-                questions.lastOrNull { it.passage != null }?.let { q.passageOf = it; q.flag("refers_to_passage") }
+                groupHead?.let { q.passageOf = it; q.flag("refers_to_passage") }
             }
             questions += q
         }

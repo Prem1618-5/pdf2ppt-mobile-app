@@ -32,7 +32,7 @@ class ItemRenderer(private val cropper: PageCropper) {
         Geometry.targetDpi(project.settings.layout, item.parts.map { p ->
             val m = project.pages[p.page]
             p.box.w * m.wIn to p.box.h * m.hIn
-        }, project.settings.dpi)
+        }, project.settings.dpi, box = project.settings.layout.box(project.settings.template.questionArea, expanded = item.passageParts.isNotEmpty()))
 
     suspend fun render(project: Project, item: Item): Rendered {
         val s = project.settings
@@ -86,43 +86,6 @@ class ItemRenderer(private val cropper: PageCropper) {
     }
 }
 
-data class ExportResult(val slides: Int, val project: Project)
-
-/** Writes the deck from the project (both layouts; switching layout re-renders, never calls the API). */
-object DeckExporter {
-    suspend fun export(
-        project: Project,
-        out: OutputStream,
-        render: suspend (Item) -> Rendered,
-        encoder: Encoder,
-        onItem: (done: Int, total: Int) -> Unit = { _, _ -> },
-    ): ExportResult {
-        val layout = project.settings.layout
-        val box = layout.box()
-        val dpi = project.settings.dpi
-        val items = ArrayList<Item>()
-        PptxWriter(out, project.name).use { w ->
-            project.items.forEachIndexed { n, it ->
-                val r = render(it)
-                val enc = encoder.encode(r.img, (box.w * dpi * 1.05).toInt(), (box.h * dpi * 1.05).toInt(), Imaging.colourfulness(r.img) >= 6)
-                val p = Geometry.place(layout, enc.w, enc.h, srcWidthIn = r.img.w / r.ppi, glyphPt = r.glyphPt)
-                w.add(SlideSpec.Picture(enc.bytes, enc.format, p.rect, altText(it)))
-                if (project.blankAfter(it)) w.add(SlideSpec.Blank)
-                val flags = it.flags.filter { f -> f != "small_text" && f != "too_small_to_read" } + Geometry.sizeFlags(p.displayPt)
-                items += it.copy(flags = flags.distinct(), displayPt = p.displayPt)
-                onItem(n + 1, project.items.size)
-            }
-            return ExportResult(w.slideCount, project.copy(items = items))
-        }
-    }
-
-    fun altText(it: Item): String = buildString {
-        append("Question ").append(it.label)
-        if (it.passageSlideOf != null) append(". Passage: see slide ").append(it.passageSlideOf)
-        if (it.stem.isNotBlank()) append(". ").append(it.stem.take(300))
-    }
-}
-
 /** QA report: one row per slide with flags, plus the integrity summary. Plain text the teacher can read. */
 object QaReport {
     val FLAG_TEXT = mapOf(
@@ -135,6 +98,10 @@ object QaReport {
         "shared_passage" to "passage shown with this question",
         "refers_to_passage" to "uses the passage of an earlier slide",
         "bilingual_twin" to "other-language copy removed",
+        "as_picture" to "shown as a picture (text could not be trusted)",
+        "expanded" to "uses the full height of the slide",
+        "passage_separate" to "passage on its own slide",
+        "text_shrunk" to "text made smaller to fit",
     )
 
     fun csv(p: Project): String = buildString {
@@ -155,7 +122,7 @@ object QaReport {
         if (ig != null) {
             append(if (ig.ok) "Numbering check: OK\n" else "Numbering check: NEEDS A LOOK — ${ig.reasons.joinToString("; ")}\n")
         }
-        val flagged = p.items.withIndex().filter { (_, it) -> it.flags.any { f -> f in setOf("low_confidence", "no_number", "small_text", "too_small_to_read") } }
+        val flagged = p.items.withIndex().filter { (_, it) -> it.flags.any { f -> f in setOf("low_confidence", "no_number", "small_text", "too_small_to_read", "as_picture") } }
         if (flagged.isEmpty()) append("No slides flagged.\n")
         for ((i, it) in flagged) {
             append("Slide question ${i + 1} (Q ${it.label}): ")

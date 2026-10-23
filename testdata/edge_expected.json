@@ -1,0 +1,124 @@
+{
+ "edge_cases.pdf": {
+  "numbers": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15
+  ],
+  "questions": {
+   "1": {
+    "options": [
+     "2",
+     "4",
+     "5",
+     "6"
+    ],
+    "sup": [
+     "2",
+     "2"
+    ],
+    "figure": false,
+    "layout": "row"
+   },
+   "2": {
+    "options": [
+     "16 - 4π cm²",
+     "4π cm²",
+     "16 cm²",
+     "8 cm²"
+    ],
+    "figure": true,
+    "layout": "grid"
+   },
+   "3": {
+    "options": [
+     "1 and 2 only",
+     "1 and 3 only",
+     "2 and 3 only",
+     "1, 2 and 3"
+    ],
+    "statements": 3,
+    "figure": false
+   },
+   "4": {
+    "options": 4,
+    "paragraphs_min": 2,
+    "figure": false,
+    "layout": "rows"
+   },
+   "5": {
+    "options": [
+     "A-2, B-1, C-3, D-4",
+     "A-1, B-2, C-3, D-4",
+     "A-2, B-1, C-4, D-3",
+     "A-3, B-4, C-1, D-2"
+    ],
+    "figure": true,
+    "table": true
+   },
+   "6": {
+    "passage": "6-10",
+    "options": 4
+   },
+   "7": {
+    "passage": "6-10",
+    "options": 4
+   },
+   "8": {
+    "passage": "6-10",
+    "options": 4
+   },
+   "9": {
+    "passage": "6-10",
+    "options": 4
+   },
+   "10": {
+    "passage": "6-10",
+    "options": 4
+   },
+   "11": {
+    "figure": true,
+    "options_as_picture": true
+   },
+   "12": {
+    "options": 4,
+    "long": true
+   },
+   "13": {
+    "options": [
+     "44 g",
+     "28 g",
+     "32 g",
+     "18 g"
+    ],
+    "sub": [
+     "2",
+     "2"
+    ]
+   },
+   "14": {
+    "options": 0
+   },
+   "15": {
+    "options": [
+     "(i) only",
+     "(i) and (iii)",
+     "(ii) only",
+     "all of these"
+    ]
+   }
+  }
+ }
+}

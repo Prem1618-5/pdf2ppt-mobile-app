@@ -8,7 +8,6 @@ import app.papertoslides.core.model.PageLayout
 import app.papertoslides.core.model.RawFragment
 import app.papertoslides.core.model.Tier
 import app.papertoslides.core.project.DeckExporter
-import app.papertoslides.core.project.ItemRenderer
 import app.papertoslides.core.project.Project
 import app.papertoslides.core.project.ProjectSettings
 import app.papertoslides.core.project.QaReport
@@ -104,9 +103,11 @@ class PipelineTest {
                 val settings = ProjectSettings(layout = layout)
                 val project = Project(id = "t", name = "digital_2col_split", createdAt = 0, sources = listOf("x.pdf"),
                     pages = Project.pagesFrom(infos, pages, res), items = Project.itemsFrom(res, settings), settings = settings, integrity = res.integrity)
-                val renderer = ItemRenderer(pdf.cropper)
+                // picture style keeps the original contract of the handoff validator (top-level pictures)
+                val pic = project.copy(settings = settings.copy(style = app.papertoslides.core.project.QuestionStyle.PICTURE))
                 val out = File(Fixtures.outDir, "e2e_${layout.name.lowercase()}.pptx")
-                val r = runBlocking { out.outputStream().use { DeckExporter.export(project, it, { item -> renderer.render(project, item) }, JvmPdf.encoder) } }
+                val src = app.papertoslides.core.project.PageItemSource(pic, pdf.cropper, { p -> pdf.lines(p) })
+                val r = runBlocking { out.outputStream().use { DeckExporter.export(pic, it, src, JvmPdf.encoder) } }
                 assertEquals(60, r.slides)
                 File(Fixtures.outDir, "e2e_${layout.name.lowercase()}_qa.txt").writeText(QaReport.text(r.project))
                 validate(out, if (layout == SlideLayout.TOP) "top" else "top-right")
