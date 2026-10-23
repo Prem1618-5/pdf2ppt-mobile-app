@@ -78,9 +78,9 @@ jobs:
           disable-animations: true
           script: |
             adb logcat -c
-            ./gradlew connectedDebugAndroidTest -PwithX86 --stacktrace || (adb logcat -d -s SelfTest:I AndroidRuntime:E TestRunner:* > selftest.log; adb pull /sdcard/Android/data/app.papertoslides/files/screens screens; exit 1)
+            ./gradlew connectedDebugAndroidTest -PwithX86 -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --stacktrace || (adb logcat -d -s SelfTest:I AndroidRuntime:E TestRunner:* > selftest.log; mkdir -p screens; adb exec-out run-as app.papertoslides tar c files/screens > screens/screens.tar; exit 1)
             adb logcat -d -s SelfTest:I > selftest.log
-            adb pull /sdcard/Android/data/app.papertoslides/files/screens screens || true
+            mkdir -p screens; adb exec-out run-as app.papertoslides tar c files/screens > screens/screens.tar || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:

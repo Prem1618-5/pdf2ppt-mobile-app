@@ -7,6 +7,8 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -43,7 +45,8 @@ import java.io.File
 class UiScreensTest {
     @get:Rule val rule = createComposeRule()
     private val ctx = InstrumentationRegistry.getInstrumentation().targetContext
-    private val shots = File(ctx.getExternalFilesDir(null), "screens").apply { mkdirs() }
+    // app-private folder: CI copies it out with `adb exec-out run-as` (shared storage is closed to adb on Android 11+)
+    private val shots = File(ctx.filesDir, "screens").apply { mkdirs() }
 
     private fun SemanticsNodeInteraction.save(name: String) {
         val bmp = captureToImage().asAndroidBitmap()
@@ -82,14 +85,18 @@ class UiScreensTest {
         runBlocking { JobRunner(ctx, s) { }.run(JobSpec(id, "Edge cases", ProjectSettings(layout = SlideLayout.TOP_RIGHT, theme = DeckTheme.DARK, template = tpl), noGemini = true), null) }
         val vm = MainViewModel(ctx.applicationContext as Application)
         rule.setContent { PaperTheme { ReviewScreen(vm, id, onBack = {}, onTemplates = {}) } }
-        rule.waitUntil(15000) { rule.onAllNodesWithContentDescription("Slide of question 1.").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(15000) { rule.onAllNodes(hasScrollAction()).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitForIdle()
+        rule.onRoot().save("04_review_top")
+        // the first card sits below the summary: scroll the grid to it
+        rule.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasContentDescription("Slide of question 1.", substring = true))
         Thread.sleep(1500) // previews decode off the main thread
         rule.waitForIdle()
         rule.onRoot().save("04_review")
-        rule.onAllNodesWithContentDescription("Slide of question 1.").onFirst().performClick()
+        rule.onAllNodes(hasContentDescription("Slide of question 1.", substring = true)).onFirst().performClick()
         rule.waitForIdle(); Thread.sleep(1000); rule.waitForIdle()
         rule.onRoot().save("05_preview_dialog")
-        assertTrue(rule.onAllNodesWithContentDescription("Slide preview of question 1.").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(rule.onAllNodes(hasContentDescription("Slide preview of question 1.", substring = true), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         s.projects.delete(id)
     }
 }
