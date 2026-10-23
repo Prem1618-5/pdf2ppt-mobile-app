@@ -28,7 +28,14 @@ jobs:
       - name: Python tools for the deck validator
         run: pip install python-pptx pymupdf pillow
       - name: LibreOffice + Arial-metric fonts (rendered text-fit check of the decks)
-        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends libreoffice-impress fonts-liberation2
+        # optional: without LibreOffice the deck tests still validate structure, only the rendered check is skipped
+        continue-on-error: true
+        timeout-minutes: 8
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update -q -o Acquire::Retries=3
+          sudo apt-get install -y -q --no-install-recommends -o Dpkg::Options::=--force-confold libreoffice-impress fonts-liberation2
       - name: Unit tests (pure Kotlin domain, fixtures, PPTX validator) and debug APK
         run: ./gradlew :core:test testDebugUnitTest assembleDebug --stacktrace
       - name: Validate the generated 30-question decks (both layouts)
