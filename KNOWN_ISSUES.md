@@ -14,13 +14,23 @@ Honest list. "Unverified" means it was built and reasoned about, but not run on 
   different from the MediaBox (A7), HEIC files (A8), 200-page PDFs (A10). Synthetic fixtures cover the logic only.
 - **Real Gemini quota**: the scheduler and client are tested with fake keys and fake responses only.
 
+## 0.2 limits (templates, dark theme, editable text)
+- Editable text is rebuilt from the PDF text layer or the phone's OCR. Complex maths (fractions, matrices,
+  integrals with limits), chemical structures and most Hindi PDFs (their text layers are often garbled) become
+  **pictures** in AUTO mode. Gemini's transcription is used as text only for pages Gemini read.
+- Font measurement is an estimate checked against LibreOffice with Arial-metric fonts. PowerPoint uses Arial too,
+  but a different Hindi font on another computer can make Hindi lines a little longer.
+- Superscripts/subscripts come from the PDF text layer; OCR does not report them (OCR text with them is plain).
+- The template designer works best in landscape on small phones; each element is a rectangle (no rotation).
+- Tab-separated option grids are rendered by PowerPoint/LibreOffice; Google Slides import may space them a little
+  differently.
+- The Review screen previews text with the phone's font, so line breaks can differ slightly from PowerPoint.
+
 ## Not done (P1 / P2)
 - Re-crop of a slide, add a missing question, relabel, undo (P1/P2). MVP has preview, move up/down, delete, per-slide blank toggle, layout switch.
 - `refine.py` box snapping for Gemini boxes (P1). Gemini boxes are padded and trimmed by ink only.
 - PDF-level watermark removal (P2). Raster removal only: pale pixels on digital pages, paper normalisation on photos.
 - Dark-frame text rebuild, speaker notes, dark theme decks (P2).
-- A shared passage is shown on the first slide of its group; later slides mention "Passage: see slide k" only in the
-  picture's alt text and the QA report, not as visible text on the slide.
 - Column-split continuations are left-aligned under the question (legacy behaviour); the indent of option lines that
   moved to the next column is not preserved.
 - Network loss during Gemini: requests wait up to 2 minutes for the connection, then those pages fall back to the

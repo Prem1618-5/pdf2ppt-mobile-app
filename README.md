@@ -5,6 +5,10 @@ in reading order, with an **empty working slide after each question**. The quest
 **top half** (`Top`) or the **top-right quarter** (`Top right`) of the slide, and you can switch later without
 re-reading the paper.
 
+New in 0.2: **your institute's template** (name strips, logo, margins) on every slide, **light or dark** slides,
+and questions as **editable PowerPoint text** with the figures cut from the paper (options neatly arranged, passages
+kept with their questions). When the text cannot be read reliably the slide uses an exact picture instead.
+
 Everything runs on the phone. No server, no login, no tracking. Google Gemini (with your own key) is used only for
 pages the phone cannot read by itself.
 
@@ -17,8 +21,10 @@ pick files ─► copy to app storage ─► pass 1: small page images, duplicat
           ─► layout ladder (per page, cheapest first, escalate only pages that fail the numbering check)
                T0 PDF text layer  →  T1 on-device OCR (ML Kit)  →  T2 Gemini (all keys in parallel)  →  T3 heuristic
           ─► assemble questions (stitch column/page splits, passages, bilingual twins, duplicates, sections)
-          ─► re-render each question from the original at high resolution, clean, trim
-          ─► .pptx (hand-written OOXML) + QA report
+          ─► per question: editable text (label, stem, statements, options) + figures/tables cut from the page,
+               or an exact picture when the text cannot be trusted (garbled Hindi, stacked maths, weak OCR)
+          ─► fit into the layout box inside the template's question area (largest comfortable font; full height
+               for passages and long questions) ─► .pptx with the template on the slide layout + QA report
 ```
 
 | Folder | What |
@@ -26,7 +32,8 @@ pick files ─► copy to app storage ─► pass 1: small page images, duplicat
 | `core/` | Pure Kotlin, no Android: parser, assembler, integrity check, ladder, key lanes, slice scheduler, Gemini protocol, imaging, project model, PPTX writer. Unit-tested on a plain JVM with the fixtures |
 | `app/` | Android: Compose UI, PdfRenderer + PdfBox-Android, ML Kit OCR, Keystore vault, OkHttp, WorkManager job, self-test |
 | `handoff/` | The handoff pack: fixtures with correct answers, reference decks, Python tools (the deck validator) |
-| `scripts/` | `security_sweep.sh` (no keys in the APK, safe manifest flags) |
+| `scripts/` | `security_sweep.sh` (no keys in the APK), `validate_deck.py` (templates/text decks, LibreOffice-rendered fit check), `make_edge_fixtures.py` |
+| `testdata/` | Edge-case papers (maths, figures, tables, passages, figure options, bilingual Hindi) with their expected structure |
 
 ## Build
 

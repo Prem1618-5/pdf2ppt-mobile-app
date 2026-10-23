@@ -25,7 +25,7 @@ Any of these works:
 3. Tap **Install**.
 4. If **Play Protect** says "unrecognised app" or "unsafe app", tap **More details → Install anyway**. It says this because the app is not from the Play Store; you built it yourself.
 
-**Updating later:** install a newer APK the same way. It installs over the old one and keeps your keys and decks.
+**Updating later:** install a newer APK the same way. It installs over the old one and keeps your keys, templates and decks.
 
 ## 4. First run
 
@@ -36,7 +36,19 @@ Any of these works:
 4. Choose **Top** or **Top right**, then **Make slides**. You can leave the app; a notification shows progress.
 5. When it is done, check the slides marked **Check** or **No number**, then tap **Save to Downloads** or **Share**.
 
-## 5. Please run the self-test once
+## 5. Your institute's template (once)
+
+1. On the start screen tap the **template icon** (four squares, top right).
+2. Tap **New template**. Type your institute name (top strip) and, if you like, your address or phone (bottom
+   strip), pick a colour and how much empty space you want on the right. Tap **Apply**.
+3. The blue box is the **question area**: questions always go inside it. Drag it, or drag its round handle to
+   resize it, or use the margin sliders. Tap a strip to change its text, size or colour. **+ Logo** adds your logo.
+4. Tap **Save**. It is used for every new deck (you can choose another one when making slides).
+
+When you make slides you can also choose **Light** or **Dark** slides and **Editable text** or **Exact picture**.
+You can change all of these later on the slides screen, without internet.
+
+## 6. Please run the self-test once
 
 Settings (gear icon) → **Self-test** → **Run self-test**. It runs the built-in test papers on your phone (no key used)
 and shows PASS / FAIL. Tap **Copy report** and send the text (or a screenshot) to whoever maintains the app.
